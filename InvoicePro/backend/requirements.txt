@@ -1,0 +1,27 @@
+# ─── Environment ──────────────────────────────────────────────
+python-dotenv==1.0.1
+
+# ─── LLM / AI ─────────────────────────────────────────────────
+ollama==0.3.3
+openai==1.40.0          # used for Azure OpenAI client too
+
+# ─── File Parsing ─────────────────────────────────────────────
+pymupdf==1.24.9         # PDF parsing (fitz)
+pillow==10.4.0          # Image handling
+pandas==2.2.2           # CSV / XLSX
+openpyxl==3.1.5         # XLSX engine for pandas
+
+# ─── Vector Store / Embeddings ────────────────────────────────
+chromadb==0.5.5         # Local vector DB (no hallucination RAG)
+sentence-transformers==3.0.1  # Local embeddings
+
+# ─── API / Backend ────────────────────────────────────────────
+fastapi==0.112.0
+uvicorn==0.30.6
+
+# ─── Frontend ─────────────────────────────────────────────────
+streamlit==1.37.1
+
+# ─── Utilities ────────────────────────────────────────────────
+python-multipart==0.0.9  # File uploads in FastAPI
+loguru==0.7.2            # Nice logging
