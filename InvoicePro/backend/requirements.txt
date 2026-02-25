@@ -12,7 +12,7 @@ pandas==2.2.2           # CSV / XLSX
 openpyxl==3.1.5         # XLSX engine for pandas
 
 # ─── Vector Store / Embeddings ────────────────────────────────
-chromadb==0.5.5         # Local vector DB (no hallucination RAG)
+chromadb==0.4.24         # Local vector DB (no hallucination RAG)
 sentence-transformers==3.0.1  # Local embeddings
 
 # ─── API / Backend ────────────────────────────────────────────
