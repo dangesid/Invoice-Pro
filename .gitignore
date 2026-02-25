@@ -12,3 +12,5 @@ setup.sh
 uploads/
 processed_reports/
 invoiceVenv/
+.DS_Store
+**/.DS_Store
