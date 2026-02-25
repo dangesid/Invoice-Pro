@@ -9,6 +9,39 @@ from backend.config import Config
 from backend.log_utils import app_logger
 from backend.azure_invoice_process_functions import parse_file
 
+# ─── Batch Ingest from Folder ─────────────────────────────────
+def ingest_folder(folder_path: str = "uploads") -> dict:
+    """
+    Scan a folder and ingest all supported files into ChromaDB.
+    Returns summary of what was ingested.
+    """
+    supported = {".pdf", ".xlsx", ".xls", ".csv", ".png", ".jpg", ".jpeg", ".tiff", ".bmp"}
+    summary = {"success": [], "failed": [], "skipped": []}
+
+    if not os.path.exists(folder_path):
+        app_logger.warning(f"Folder not found: {folder_path}")
+        return summary
+
+    files = [f for f in os.listdir(folder_path) if os.path.splitext(f)[1].lower() in supported]
+
+    if not files:
+        app_logger.warning(f"No supported files found in: {folder_path}")
+        return summary
+
+    for filename in files:
+        file_path = os.path.join(folder_path, filename)
+        try:
+            count = ingest_file(file_path)
+            if count > 0:
+                summary["success"].append({"file": filename, "chunks": count})
+            else:
+                summary["skipped"].append(filename)
+        except Exception as e:
+            app_logger.error(f"Failed to ingest {filename}: {e}")
+            summary["failed"].append({"file": filename, "error": str(e)})
+
+    app_logger.info(f"Folder ingest complete: {len(summary['success'])} success, {len(summary['failed'])} failed, {len(summary['skipped'])} skipped")
+    return summary
 
 # ─── ChromaDB Setup ───────────────────────────────────────────
 CHROMA_PATH = "processed_reports/chroma_db"

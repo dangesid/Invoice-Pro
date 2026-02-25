@@ -4,4 +4,7 @@ processed_reports/
 .env
 __pycache__/
 *.pyc
-invoiceVenv/
+invoiceVenv/invoiceVenv/
+setup.sh
+uploads/
+processed_reports/

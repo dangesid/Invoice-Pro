@@ -18,6 +18,7 @@ sentence-transformers==3.0.1  # Local embeddings
 # ─── API / Backend ────────────────────────────────────────────
 fastapi==0.112.0
 uvicorn==0.30.6
+reportlab==4.0.9          # PDF generation for reports
 
 # ─── Frontend ─────────────────────────────────────────────────
 streamlit==1.37.1
