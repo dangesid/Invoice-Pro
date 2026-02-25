@@ -1,0 +1,14 @@
+setup.sh
+__pycache__/
+*.pyc
+logs/
+uploads/
+processed_reports/
+.env
+__pycache__/
+*.pyc
+invoiceVenv/invoiceVenv/
+setup.sh
+uploads/
+processed_reports/
+invoiceVenv/
