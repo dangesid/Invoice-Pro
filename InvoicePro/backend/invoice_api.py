@@ -55,6 +55,7 @@ embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
 
 def get_chroma_collection():
     """Initialize ChromaDB client and return the invoices collection."""
+    os.makedirs(CHROMA_PATH, exist_ok=True)
     client = chromadb.PersistentClient(path=CHROMA_PATH)
     collection = client.get_or_create_collection(
         name=COLLECTION_NAME,
