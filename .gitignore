@@ -4,3 +4,9 @@ processed_reports/
 .env
 __pycache__/
 *.pyc
+logs/
+uploads/
+processed_reports/
+.env
+__pycache__/
+*.pyc
