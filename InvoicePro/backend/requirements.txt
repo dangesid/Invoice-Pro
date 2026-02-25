@@ -25,3 +25,5 @@ streamlit==1.37.1
 # ─── Utilities ────────────────────────────────────────────────
 python-multipart==0.0.9  # File uploads in FastAPI
 loguru==0.7.2            # Nice logging
+
+pytesseract==0.3.13
