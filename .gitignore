@@ -1,0 +1,6 @@
+logs/
+uploads/
+processed_reports/
+.env
+__pycache__/
+*.pyc
