@@ -1,4 +1,4 @@
-# 🧾 InvoicePro AI
+# 🧾 InvoicePro AI - FASTAPI INTEGRATION
 
 An AI-powered invoice analysis tool that lets you upload invoice files (PDF, XLSX, CSV, Images) and chat with them using a local LLM — strictly no hallucination, all answers sourced from your documents.
 
