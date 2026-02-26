@@ -1,121 +1,124 @@
 # backend/invoice_api.py
 
 import os
-os.environ["ANONYMIZED_TELEMETRY"] = "False"
-os.environ["CHROMA_TELEMETRY"] = "False"
-import chromadb
-from chromadb.utils import embedding_functions
-from backend.config import Config
+import asyncio
+import httpx
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from pydantic import BaseModel
+
+from backend.memory_store import memory_state
 from backend.log_utils import app_logger
 from backend.azure_invoice_process_functions import parse_file
+from backend.config import Config
 
-# ─── Batch Ingest from Folder ─────────────────────────────────
-def ingest_folder(folder_path: str = "uploads") -> dict:
-    """
-    Scan a folder and ingest all supported files into ChromaDB.
-    Returns summary of what was ingested.
-    """
-    supported = {".pdf", ".xlsx", ".xls", ".csv", ".png", ".jpg", ".jpeg", ".tiff", ".bmp"}
-    summary = {"success": [], "failed": [], "skipped": []}
+import chromadb
+from chromadb.utils import embedding_functions
 
-    if not os.path.exists(folder_path):
-        app_logger.warning(f"Folder not found: {folder_path}")
-        return summary
+# Disable telemetry noise
+os.environ["ANONYMIZED_TELEMETRY"] = "False"
+os.environ["CHROMA_TELEMETRY"] = "False"
 
-    files = [f for f in os.listdir(folder_path) if os.path.splitext(f)[1].lower() in supported]
+# ===============================
+# FastAPI INIT
+# ===============================
+app = FastAPI(title="InvoicePro RAG API")
 
-    if not files:
-        app_logger.warning(f"No supported files found in: {folder_path}")
-        return summary
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-    for filename in files:
-        file_path = os.path.join(folder_path, filename)
-        try:
-            count = ingest_file(file_path)
-            if count > 0:
-                summary["success"].append({"file": filename, "chunks": count})
-            else:
-                summary["skipped"].append(filename)
-        except Exception as e:
-            app_logger.error(f"Failed to ingest {filename}: {e}")
-            summary["failed"].append({"file": filename, "error": str(e)})
-
-    app_logger.info(f"Folder ingest complete: {len(summary['success'])} success, {len(summary['failed'])} failed, {len(summary['skipped'])} skipped")
-    return summary
-
-# ─── ChromaDB Setup ───────────────────────────────────────────
+# ===============================
+# GLOBAL CHROMA
+# ===============================
 CHROMA_PATH = "processed_reports/chroma_db"
 COLLECTION_NAME = "invoices"
 
-# Local sentence-transformer embeddings (no API call needed)
 embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
     model_name="all-MiniLM-L6-v2"
 )
 
+os.makedirs(CHROMA_PATH, exist_ok=True)
 
-def get_chroma_collection():
-    """Initialize ChromaDB client and return the invoices collection."""
-    os.makedirs(CHROMA_PATH, exist_ok=True)
-    client = chromadb.PersistentClient(path=CHROMA_PATH)
-    collection = client.get_or_create_collection(
-        name=COLLECTION_NAME,
-        embedding_function=embedding_fn,
-    )
-    return collection
+chroma_client = chromadb.PersistentClient(path=CHROMA_PATH)
+
+collection = chroma_client.get_or_create_collection(
+    name=COLLECTION_NAME,
+    embedding_function=embedding_fn,
+)
+
+app_logger.info("✅ Chroma collection initialized (global)")
 
 
-# ─── Ingest ───────────────────────────────────────────────────
+# ===============================
+# CLEAR COLLECTION (single invoice mode)
+# ===============================
+def clear_collection():
+    """Wipe all documents from ChromaDB before ingesting a new invoice."""
+    try:
+        existing = collection.get()
+        if existing and existing["ids"]:
+            collection.delete(ids=existing["ids"])
+            app_logger.info(f"🗑️ Cleared {len(existing['ids'])} old chunks from ChromaDB")
+        else:
+            app_logger.info("ChromaDB already empty — nothing to clear")
+    except Exception as e:
+        app_logger.warning(f"Failed to clear collection: {e}")
+
+
+# ===============================
+# INGEST CORE LOGIC
+# ===============================
 def ingest_file(file_path: str) -> int:
-    """
-    Parse a file and store its chunks in ChromaDB.
-    Returns number of chunks ingested.
-    """
-    app_logger.info(f"Ingesting file: {file_path}")
-    chunks = parse_file(file_path)
+    try:
+        app_logger.info(f"Ingesting file: {file_path}")
 
-    if not chunks:
-        app_logger.warning(f"No chunks extracted from: {file_path}")
-        return 0
+        # Single invoice mode: wipe all previous data before ingesting new file
+        clear_collection()
 
-    collection = get_chroma_collection()
+        chunks = list(parse_file(file_path))
 
-    documents = []
-    metadatas = []
-    ids = []
+        if not chunks:
+            app_logger.warning("No chunks extracted.")
+            return 0
 
-    for i, chunk in enumerate(chunks):
-        doc_id = f"{os.path.basename(file_path)}_chunk_{i}"
-        documents.append(chunk["content"])
-        metadatas.append({
-            "source": chunk["source"],
-            "page": str(chunk["page"]),
-        })
-        ids.append(doc_id)
+        documents, metadatas, ids = [], [], []
 
-    # Upsert so re-uploading same file doesn't duplicate
-    collection.upsert(
-        documents=documents,
-        metadatas=metadatas,
-        ids=ids,
-    )
+        for i, chunk in enumerate(chunks):
+            doc_id = f"{os.path.basename(file_path)}_chunk_{i}"
+            documents.append(chunk["content"])
+            metadatas.append({
+                "source": chunk.get("source", file_path),
+                "page": str(chunk.get("page", i))
+            })
+            ids.append(doc_id)
 
-    app_logger.info(f"Ingested {len(chunks)} chunks from {file_path}")
-    return len(chunks)
+        app_logger.info(f"Embedding + upsert starting ({len(documents)} chunks)")
+
+        collection.upsert(
+            documents=documents,
+            metadatas=metadatas,
+            ids=ids,
+        )
+
+        app_logger.info("Embedding + upsert DONE")
+
+        memory_state.set_active_invoice(os.path.basename(file_path))
+
+        return len(chunks)
+
+    except Exception as e:
+        app_logger.exception("Ingest pipeline failed")
+        raise e
 
 
-# ─── Retrieve ─────────────────────────────────────────────────
-def retrieve_context(query: str, n_results: int = 5) -> list[dict]:
-    """
-    Retrieve the most relevant chunks from ChromaDB for a query.
-    """
-    collection = get_chroma_collection()
-    results = collection.query(
-        query_texts=[query],
-        n_results=n_results,
-    )
+# ===============================
+# RETRIEVE
+# ===============================
+def retrieve_context(query: str, n_results: int = 5):
+    results = collection.query(query_texts=[query], n_results=n_results)
 
     contexts = []
-    if results and results["documents"]:
+
+    if results and results.get("documents"):
         for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
             contexts.append({
                 "content": doc,
@@ -123,87 +126,157 @@ def retrieve_context(query: str, n_results: int = 5) -> list[dict]:
                 "page": meta.get("page", "?"),
             })
 
-    app_logger.info(f"Retrieved {len(contexts)} context chunks for query: '{query}'")
     return contexts
 
 
-# ─── LLM Call ─────────────────────────────────────────────────
-def ask_llm(query: str, context_chunks: list[dict]) -> str:
-    """
-    Send query + retrieved context to Ollama or Azure.
-    Strictly instructs the model to answer only from context.
-    """
+# ===============================
+# LLM — uses httpx with timeout to avoid hanging forever
+# ===============================
+def ask_llm(query: str, context_chunks):
     if not context_chunks:
-        return "I could not find any relevant information in the uploaded documents to answer your question."
+        return "No relevant info found."
 
-    # Build context string
-    context_text = "\n\n".join([
-        f"[Source: {c['source']} | Page: {c['page']}]\n{c['content']}"
+    context_text = "\n\n".join(
+        f"[{c['source']} p{c['page']}]\n{c['content']}"
         for c in context_chunks
-    ])
+    )
 
-    system_prompt = """You are an invoice analysis assistant.
-Your job is to answer questions STRICTLY based on the document context provided below.
-Rules:
-- NEVER make up or guess any information.
-- If the answer is not found in the context, say: "I could not find this information in the uploaded documents."
-- Always mention the source file and page number when referencing data.
-- Be concise and precise."""
+    system_prompt = (
+        "You are an invoice assistant. Answer questions using ONLY the provided invoice context. "
+        "Be specific and extract exact values (amounts, dates, names, line items) from the context. "
+        "If the answer is not in the context, say 'Not found in the invoice.'"
+    )
+    user_prompt = f"Invoice context:\n{context_text}\n\nQuestion: {query}"
 
-    user_prompt = f"""Context from uploaded documents:
----
-{context_text}
----
-
-Question: {query}
-
-Answer strictly based on the context above:"""
-
-    # ─── Ollama ──────────────────────────────────────────────
     if Config.MODEL_PROVIDER == "ollama":
-        import ollama
-        app_logger.info(f"Calling Ollama model: {Config.OLLAMA_MODEL}")
-        response = ollama.chat(
-            model=Config.OLLAMA_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
-        return response["message"]["content"]
+        try:
+            with httpx.Client(timeout=120.0) as client:
+                response = client.post(
+                    f"{Config.OLLAMA_BASE_URL}/api/chat",
+                    json={
+                        "model": Config.OLLAMA_MODEL,
+                        "messages": [
+                            {"role": "system", "content": system_prompt},
+                            {"role": "user", "content": user_prompt},
+                        ],
+                        "stream": False,
+                    },
+                )
+                response.raise_for_status()
+                return response.json()["message"]["content"]
 
-    # ─── Azure OpenAI ────────────────────────────────────────
-    elif Config.MODEL_PROVIDER == "azure":
-        from openai import AzureOpenAI
-        app_logger.info(f"Calling Azure deployment: {Config.AZURE_OPENAI_DEPLOYMENT}")
-        client = AzureOpenAI(
-            api_key=Config.AZURE_OPENAI_API_KEY,
-            azure_endpoint=Config.AZURE_OPENAI_ENDPOINT,
-            api_version=Config.AZURE_OPENAI_API_VERSION,
-        )
-        response = client.chat.completions.create(
-            model=Config.AZURE_OPENAI_DEPLOYMENT,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-        )
-        return response.choices[0].message.content
+        except httpx.TimeoutException:
+            app_logger.error("Ollama request timed out after 120s")
+            return "LLM request timed out. Please try again."
+        except Exception as e:
+            app_logger.exception("Ollama request failed")
+            return f"LLM error: {str(e)}"
 
-    else:
-        raise ValueError(f"Unknown MODEL_PROVIDER: {Config.MODEL_PROVIDER}")
+    return "Model provider not configured"
 
 
-# ─── Main Chat Function ───────────────────────────────────────
-def chat(query: str) -> dict:
-    """
-    Full RAG pipeline: retrieve context → ask LLM → return answer.
-    """
-    app_logger.info(f"Chat query: '{query}'")
+# ===============================
+# CHAT CORE LOGIC
+# ===============================
+def chat(query: str):
+    # Guard: ensure an invoice has been uploaded
+    active_invoice = memory_state.get_active_invoice()
+    if not active_invoice:
+        return {
+            "query": query,
+            "answer": "No invoice uploaded yet. Please upload an invoice first.",
+            "sources": [],
+        }
+
     context_chunks = retrieve_context(query)
+
+    memory_state.set_last_interaction(query, context_chunks)
+
     answer = ask_llm(query, context_chunks)
-    return {
+
+    result = {
         "query": query,
         "answer": answer,
-        "sources": [{"source": c["source"], "page": c["page"]} for c in context_chunks],
+        "active_invoice": active_invoice,
+        "sources": [
+            {"source": c["source"], "page": c["page"]}
+            for c in context_chunks
+        ],
     }
+
+    memory_state.add_chat_turn(query, answer, result["sources"])
+
+    return result
+
+
+# ===============================
+# API MODELS
+# ===============================
+class ChatRequest(BaseModel):
+    question: str
+
+
+# ===============================
+# ROUTES
+# ===============================
+@app.get("/health")
+def health():
+    active = memory_state.get_active_invoice()
+    return {
+        "status": "ok",
+        "active_invoice": active or "none",
+    }
+
+
+@app.post("/ingest-file")
+async def api_ingest_file(file: UploadFile = File(...)):
+    try:
+        file_path = os.path.join(UPLOAD_DIR, file.filename)
+
+        contents = await file.read()
+        await file.close()
+
+        with open(file_path, "wb") as buffer:
+            buffer.write(contents)
+
+        app_logger.info(f"File saved to {file_path} ({len(contents)} bytes)")
+
+        count = await asyncio.to_thread(ingest_file, file_path)
+
+        return {
+            "status": "success",
+            "file": file.filename,
+            "chunks": count,
+            "message": f"Previous invoice cleared. Now chatting about: {file.filename}",
+        }
+
+    except Exception as e:
+        app_logger.exception("API ingest failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chat")
+async def api_chat(req: ChatRequest):
+    try:
+        result = await asyncio.to_thread(chat, req.question)
+        return result
+    except Exception as e:
+        app_logger.exception("API chat failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ===============================
+# STARTUP: pre-warm the model so first request doesn't time out
+# ===============================
+@app.on_event("startup")
+async def startup_event():
+    app_logger.info("🚀 Server started. Pre-warming Ollama model...")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            await client.post(
+                f"{Config.OLLAMA_BASE_URL}/api/generate",
+                json={"model": Config.OLLAMA_MODEL, "prompt": "hi", "stream": False},
+            )
+        app_logger.info("✅ Ollama model pre-warmed")
+    except Exception as e:
+        app_logger.warning(f"Model pre-warm failed (non-fatal): {e}")
