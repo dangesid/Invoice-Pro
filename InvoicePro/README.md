@@ -126,6 +126,64 @@ Open browser at: **http://localhost:8501**
 
 ---
 
+## 🌐 FastAPI Integration (Linux)
+
+You can also run InvoicePro as a standalone FastAPI backend (without the Streamlit UI) and integrate it with other services.
+
+### 1️⃣ Start Ollama (LLM backend)
+
+```bash
+ollama serve
+```
+
+Make sure the model in your `.env` (for example `llama3.2`) is already pulled:
+
+```bash
+ollama pull llama3.2
+```
+
+### 2️⃣ Activate virtual environment
+
+From the project root:
+
+```bash
+cd Invoice-Pro/InvoicePro
+source ../invoiceVenv/bin/activate
+```
+
+### 3️⃣ Start the FastAPI server (uvicorn)
+
+Use the main RAG-focused API app defined in `backend/invoice_api.py`:
+
+```bash
+uvicorn backend.invoice_api:app --host 0.0.0.0 --port 8000 --reload
+```
+
+This exposes:
+
+- `/health` — health/status of the RAG engine
+- `/ingest-file` — ingest a single uploaded invoice (clears previous one)
+- `/chat` — ask questions about the active invoice (JSON body)
+
+Once the server is running, you can open:
+
+- Interactive docs (Swagger UI): `http://localhost:8000/docs`
+- ReDoc documentation: `http://localhost:8000/redoc`
+
+---
+
+## 📡 FastAPI Endpoints (`backend.invoice_api:app`)
+
+| Method | Path          | Description                                           | Request body / params                                      |
+|--------|---------------|-------------------------------------------------------|------------------------------------------------------------|
+| GET    | `/health`     | Health check + currently active invoice               | _None_                                                     |
+| POST   | `/ingest-file`| Upload and ingest a **single** invoice (clears old)   | `multipart/form-data` with `file: UploadFile`             |
+| POST   | `/chat`       | Ask a question about the active invoice               | JSON: `{ "question": "What is the total amount?" }`       |
+
+All endpoints respect your `.env` configuration for `MODEL_PROVIDER` (Ollama vs Azure) and model names.
+
+---
+
 ## 🖥️ Using the UI
 
 1. **Upload files** — drag and drop PDF, XLSX, CSV, or image files into the sidebar
