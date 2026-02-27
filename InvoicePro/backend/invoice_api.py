@@ -4,6 +4,7 @@ import os
 import asyncio
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from backend.memory_store import memory_state
@@ -14,7 +15,6 @@ from backend.config import Config
 import chromadb
 from chromadb.utils import embedding_functions
 
-# Disable telemetry noise
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 os.environ["CHROMA_TELEMETRY"] = "False"
 
@@ -22,6 +22,15 @@ os.environ["CHROMA_TELEMETRY"] = "False"
 # FastAPI INIT
 # ===============================
 app = FastAPI(title="InvoicePro RAG API")
+
+# CORS — required for browser fetch() from Streamlit iframe
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
@@ -52,7 +61,6 @@ app_logger.info("✅ Chroma collection initialized (global)")
 # CLEAR COLLECTION (single invoice mode)
 # ===============================
 def clear_collection():
-    """Wipe all documents from ChromaDB before ingesting a new invoice."""
     try:
         existing = collection.get()
         if existing and existing["ids"]:
@@ -70,10 +78,7 @@ def clear_collection():
 def ingest_file(file_path: str) -> int:
     try:
         app_logger.info(f"Ingesting file: {file_path}")
-
-        # Single invoice mode: wipe all previous data before ingesting new file
         clear_collection()
-
         chunks = list(parse_file(file_path))
 
         if not chunks:
@@ -81,7 +86,6 @@ def ingest_file(file_path: str) -> int:
             return 0
 
         documents, metadatas, ids = [], [], []
-
         for i, chunk in enumerate(chunks):
             doc_id = f"{os.path.basename(file_path)}_chunk_{i}"
             documents.append(chunk["content"])
@@ -92,17 +96,9 @@ def ingest_file(file_path: str) -> int:
             ids.append(doc_id)
 
         app_logger.info(f"Embedding + upsert starting ({len(documents)} chunks)")
-
-        collection.upsert(
-            documents=documents,
-            metadatas=metadatas,
-            ids=ids,
-        )
-
+        collection.upsert(documents=documents, metadatas=metadatas, ids=ids)
         app_logger.info("Embedding + upsert DONE")
-
         memory_state.set_active_invoice(os.path.basename(file_path))
-
         return len(chunks)
 
     except Exception as e:
@@ -115,9 +111,7 @@ def ingest_file(file_path: str) -> int:
 # ===============================
 def retrieve_context(query: str, n_results: int = 5):
     results = collection.query(query_texts=[query], n_results=n_results)
-
     contexts = []
-
     if results and results.get("documents"):
         for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
             contexts.append({
@@ -125,12 +119,11 @@ def retrieve_context(query: str, n_results: int = 5):
                 "source": meta.get("source", "unknown"),
                 "page": meta.get("page", "?"),
             })
-
     return contexts
 
 
 # ===============================
-# LLM — uses httpx with timeout to avoid hanging forever
+# LLM
 # ===============================
 def ask_llm(query: str, context_chunks):
     if not context_chunks:
@@ -164,7 +157,6 @@ def ask_llm(query: str, context_chunks):
                 )
                 response.raise_for_status()
                 return response.json()["message"]["content"]
-
         except httpx.TimeoutException:
             app_logger.error("Ollama request timed out after 120s")
             return "LLM request timed out. Please try again."
@@ -179,7 +171,6 @@ def ask_llm(query: str, context_chunks):
 # CHAT CORE LOGIC
 # ===============================
 def chat(query: str):
-    # Guard: ensure an invoice has been uploaded
     active_invoice = memory_state.get_active_invoice()
     if not active_invoice:
         return {
@@ -189,23 +180,17 @@ def chat(query: str):
         }
 
     context_chunks = retrieve_context(query)
-
     memory_state.set_last_interaction(query, context_chunks)
-
     answer = ask_llm(query, context_chunks)
 
     result = {
         "query": query,
         "answer": answer,
         "active_invoice": active_invoice,
-        "sources": [
-            {"source": c["source"], "page": c["page"]}
-            for c in context_chunks
-        ],
+        "sources": [{"source": c["source"], "page": c["page"]} for c in context_chunks],
     }
 
     memory_state.add_chat_turn(query, answer, result["sources"])
-
     return result
 
 
@@ -222,34 +207,25 @@ class ChatRequest(BaseModel):
 @app.get("/health")
 def health():
     active = memory_state.get_active_invoice()
-    return {
-        "status": "ok",
-        "active_invoice": active or "none",
-    }
+    return {"status": "ok", "active_invoice": active or "none"}
 
 
 @app.post("/ingest-file")
 async def api_ingest_file(file: UploadFile = File(...)):
     try:
         file_path = os.path.join(UPLOAD_DIR, file.filename)
-
         contents = await file.read()
         await file.close()
-
         with open(file_path, "wb") as buffer:
             buffer.write(contents)
-
         app_logger.info(f"File saved to {file_path} ({len(contents)} bytes)")
-
         count = await asyncio.to_thread(ingest_file, file_path)
-
         return {
             "status": "success",
             "file": file.filename,
             "chunks": count,
             "message": f"Previous invoice cleared. Now chatting about: {file.filename}",
         }
-
     except Exception as e:
         app_logger.exception("API ingest failed")
         raise HTTPException(status_code=500, detail=str(e))
@@ -266,7 +242,7 @@ async def api_chat(req: ChatRequest):
 
 
 # ===============================
-# STARTUP: pre-warm the model so first request doesn't time out
+# STARTUP
 # ===============================
 @app.on_event("startup")
 async def startup_event():
