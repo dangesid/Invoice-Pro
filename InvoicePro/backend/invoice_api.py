@@ -1,8 +1,10 @@
 # backend/invoice_api.py
 
 import os
+import json
 import asyncio
 import httpx
+from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -23,7 +25,6 @@ os.environ["CHROMA_TELEMETRY"] = "False"
 # ===============================
 app = FastAPI(title="InvoicePro RAG API")
 
-# CORS — required for browser fetch() from Streamlit iframe
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -34,6 +35,10 @@ app.add_middleware(
 
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+# ── Directory where extracted text JSONs are saved ──────────
+EXTRACTED_TEXT_DIR = "extracted_text"
+os.makedirs(EXTRACTED_TEXT_DIR, exist_ok=True)
 
 # ===============================
 # GLOBAL CHROMA
@@ -73,6 +78,51 @@ def clear_collection():
 
 
 # ===============================
+# SAVE EXTRACTED TEXT TO JSON
+# ===============================
+def save_extracted_text(file_path: str, chunks: list) -> str:
+    """
+    Persist extracted chunks to extracted_text/<filename>.json
+    immediately after parsing, before ChromaDB ingestion.
+
+    Schema:
+    {
+      "source_file": "invoice.pdf",
+      "extracted_at": "2024-01-01T12:00:00Z",
+      "total_chunks": 3,
+      "chunks": [
+        { "chunk_index": 0, "page": 1, "source": "...", "content": "..." },
+        ...
+      ]
+    }
+    """
+    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    out_path = os.path.join(EXTRACTED_TEXT_DIR, f"{base_name}_{timestamp}.json")
+
+    payload = {
+        "source_file": os.path.basename(file_path),
+        "extracted_at": datetime.utcnow().isoformat() + "Z",
+        "total_chunks": len(chunks),
+        "chunks": [
+            {
+                "chunk_index": i,
+                "page": chunk.get("page", i),
+                "source": chunk.get("source", file_path),
+                "content": chunk.get("content", ""),
+            }
+            for i, chunk in enumerate(chunks)
+        ],
+    }
+
+    with open(out_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    app_logger.info(f"💾 Extracted text saved → {out_path}")
+    return out_path
+
+
+# ===============================
 # INGEST CORE LOGIC
 # ===============================
 def ingest_file(file_path: str) -> int:
@@ -84,6 +134,9 @@ def ingest_file(file_path: str) -> int:
         if not chunks:
             app_logger.warning("No chunks extracted.")
             return 0
+
+        # ── Save extracted text to JSON immediately ──────────
+        save_extracted_text(file_path, chunks)
 
         documents, metadatas, ids = [], [], []
         for i, chunk in enumerate(chunks):
