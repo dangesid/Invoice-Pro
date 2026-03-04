@@ -163,17 +163,41 @@ def ingest_file(file_path: str) -> int:
 # RETRIEVE
 # ===============================
 def retrieve_context(query: str, n_results: int = 5):
-    results = collection.query(query_texts=[query], n_results=n_results)
-    contexts = []
-    if results and results.get("documents"):
-        for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
-            contexts.append({
-                "content": doc,
-                "source": meta.get("source", "unknown"),
-                "page": meta.get("page", "?"),
-            })
-    return contexts
+    try:
+        # Guard: don't query an empty collection (causes crash in some chroma versions)
+        existing = collection.get()
+        if not existing or not existing.get("ids"):
+            app_logger.warning("ChromaDB collection is empty — nothing to retrieve")
+            return []
 
+        actual_n = min(n_results, len(existing["ids"]))
+        results = collection.query(query_texts=[query], n_results=actual_n)
+
+        contexts = []
+        if not results:
+            return contexts
+
+        documents  = results.get("documents")  or [[]]
+        metadatas  = results.get("metadatas")  or [[]]
+
+        docs_list  = documents[0]  if documents  else []
+        metas_list = metadatas[0]  if metadatas  else []
+
+        for i, doc in enumerate(docs_list):
+            # meta may be None for individual entries — guard each one
+            meta = metas_list[i] if i < len(metas_list) else None
+            meta = meta or {}
+            contexts.append({
+                "content": doc or "",
+                "source":  meta.get("source", "unknown"),
+                "page":    meta.get("page",   "?"),
+            })
+
+        return contexts
+    except Exception as e:
+        app_logger.exception(f"retrieve_context failed: {e}")
+        return []
+    
 
 # ===============================
 # LLM
@@ -224,27 +248,46 @@ def ask_llm(query: str, context_chunks):
 # CHAT CORE LOGIC
 # ===============================
 def chat(query: str):
-    active_invoice = memory_state.get_active_invoice()
+    try:
+        active_invoice = memory_state.get_active_invoice()
+    except Exception:
+        active_invoice = None
+
     if not active_invoice:
         return {
-            "query": query,
-            "answer": "No invoice uploaded yet. Please upload an invoice first.",
+            "query":   query,
+            "answer":  "No document uploaded yet. Please upload a file first.",
             "sources": [],
         }
 
     context_chunks = retrieve_context(query)
-    memory_state.set_last_interaction(query, context_chunks)
+
+    try:
+        memory_state.set_last_interaction(query, context_chunks)
+    except Exception:
+        pass  # non-fatal
+
     answer = ask_llm(query, context_chunks)
 
+    sources = [
+        {"source": c.get("source", "unknown"), "page": c.get("page", "?")}
+        for c in context_chunks
+    ]
+
     result = {
-        "query": query,
-        "answer": answer,
+        "query":          query,
+        "answer":         answer,
         "active_invoice": active_invoice,
-        "sources": [{"source": c["source"], "page": c["page"]} for c in context_chunks],
+        "sources":        sources,
     }
 
-    memory_state.add_chat_turn(query, answer, result["sources"])
+    try:
+        memory_state.add_chat_turn(query, answer, sources)
+    except Exception:
+        pass  # non-fatal
+
     return result
+
 
 
 # ===============================
