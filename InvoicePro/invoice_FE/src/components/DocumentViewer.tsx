@@ -1,5 +1,6 @@
 import {
   ArrowLeft, FileText, Eye, Database, Loader2, AlertCircle,
+  Download,
   CheckCircle2, HardDrive, RefreshCw, ChevronDown, ChevronUp,
   Sheet,
 } from "lucide-react";
@@ -215,8 +216,60 @@ export default function DocumentViewer({
   const { sheets: xlsSheets, loading: xlsLoading, error: xlsError } = useSheetPreview(file, isXlsx);
   const { sheet: csvSheet, loading: csvLoading }                      = useCsvPreview(file, isCsv);
 
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<"saved" | "error" | null>(null);
+
   const toggle    = (s: string) => setCollapsed(p => ({ ...p, [s]: !p[s] }));
   const isLoading = uploading || extracting;
+
+  // Save extracted JSON to user-chosen folder via File System Access API
+  const handleSaveJson = async () => {
+    if (!invoiceData) return;
+    setSaving(true);
+    setSaveMsg(null);
+
+    const payload = {
+      source_file:   file.name,
+      extracted_at:  new Date().toISOString(),
+      file_size_bytes: file.size,
+      summary:       invoiceData.summary,
+      sections:      invoiceData.sections,
+      line_items:    invoiceData.line_items,
+    };
+    const json    = JSON.stringify(payload, null, 2);
+    const suggestedName = file.name.replace(/\.[^/.]+$/, "") + "_extracted.json";
+
+    try {
+      // Modern browsers: let user pick folder/filename
+      if ("showSaveFilePicker" in window) {
+        const fileHandle = await (window as any).showSaveFilePicker({
+          suggestedName,
+          types: [{ description: "JSON file", accept: { "application/json": [".json"] } }],
+        });
+        const writable = await fileHandle.createWritable();
+        await writable.write(json);
+        await writable.close();
+      } else {
+        // Fallback: standard download (goes to browser Downloads folder)
+        const blob = new Blob([json], { type: "application/json" });
+        const url  = URL.createObjectURL(blob);
+        const a    = Object.assign(document.createElement("a"), {
+          href: url, download: suggestedName,
+        });
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+      setSaveMsg("saved");
+    } catch (e: any) {
+      // User cancelled the picker — not an error
+      if (e?.name !== "AbortError") setSaveMsg("error");
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveMsg(null), 3000);
+    }
+  };
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }}
@@ -362,10 +415,27 @@ export default function DocumentViewer({
               <Database className="h-4 w-4 text-primary"/>Extracted Data
             </div>
             {invoiceData && !isLoading && (
-              <button onClick={onReExtract}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-surface-high hover:text-navy">
-                <RefreshCw className="h-3 w-3"/>Re-extract
-              </button>
+              <div className="flex items-center gap-1">
+                <button onClick={onReExtract}
+                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-surface-high hover:text-navy">
+                  <RefreshCw className="h-3 w-3"/>Re-extract
+                </button>
+                <button
+                  onClick={handleSaveJson}
+                  disabled={saving}
+                  title="Save extracted data as JSON"
+                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all ${
+                    saveMsg === "saved"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : saveMsg === "error"
+                      ? "border-destructive/20 bg-destructive/5 text-destructive"
+                      : "border-primary/20 bg-primary/8 text-primary hover:bg-primary/15"
+                  } disabled:opacity-50`}
+                >
+                  {saving ? <Loader2 className="h-3 w-3 animate-spin"/> : <Download className="h-3 w-3"/>}
+                  {saving ? "Saving…" : saveMsg === "saved" ? "Saved!" : saveMsg === "error" ? "Failed" : "Save JSON"}
+                </button>
+              </div>
             )}
           </div>
 

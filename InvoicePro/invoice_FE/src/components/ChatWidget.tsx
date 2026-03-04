@@ -108,7 +108,7 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.94 }}
         onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 animate-pulse-green"
+        className="fixed bottom-8 right-8 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-white shadow-xl shadow-primary/30 animate-pulse-green"
         aria-label="Toggle chat"
       >
         <AnimatePresence mode="wait">
@@ -132,7 +132,7 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.96 }}
             transition={{ type: "spring", damping: 28, stiffness: 380 }}
-            className="fixed bottom-24 right-6 z-50 flex h-[560px] w-[400px] flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-2xl shadow-navy/10"
+            className="fixed bottom-28 right-8 z-50 flex h-[560px] w-[400px] flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-2xl shadow-navy/10"
           >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-border bg-surface-raised px-4 py-3">
