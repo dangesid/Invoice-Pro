@@ -30,10 +30,8 @@ const COLORS = [
   "border-slate-100 bg-slate-50/70",
 ];
 
-// Progressively reveal sections as data arrives
 function useProgressiveReveal(data: InvoiceData | null) {
   const [visibleCount, setVisibleCount] = useState(0);
-
   useEffect(() => {
     if (!data) { setVisibleCount(0); return; }
     setVisibleCount(0);
@@ -43,10 +41,9 @@ function useProgressiveReveal(data: InvoiceData | null) {
       i++;
       setVisibleCount(i);
       if (i >= total) clearInterval(timer);
-    }, 120); // reveal one section every 120ms — feels instant but animated
+    }, 100);
     return () => clearInterval(timer);
   }, [data]);
-
   return visibleCount;
 }
 
@@ -55,17 +52,17 @@ export default function DocumentViewer({
   uploading, extracting, uploadError, extractError,
   onBack, onReExtract,
 }: Props) {
-  const fileUrl = URL.createObjectURL(file);
-  const isPdf   = file.type === "application/pdf";
-  const isImage = file.type.startsWith("image/");
-  const fileExt = file.name.split(".").pop()?.toUpperCase() ?? "FILE";
+  const fileUrl    = URL.createObjectURL(file);
+  const isPdf      = file.type === "application/pdf";
+  const isImage    = file.type.startsWith("image/");
+  const fileExt    = file.name.split(".").pop()?.toUpperCase() ?? "FILE";
   const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
 
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsed]       = useState<Record<string, boolean>>({});
   const [lineItemsOpen, setLineItemsOpen] = useState(true);
   const visibleCount = useProgressiveReveal(invoiceData);
 
-  const toggle = (s: string) => setCollapsed(p => ({ ...p, [s]: !p[s] }));
+  const toggle    = (s: string) => setCollapsed(p => ({ ...p, [s]: !p[s] }));
   const isLoading = uploading || extracting;
 
   return (
@@ -76,7 +73,7 @@ export default function DocumentViewer({
       <div className="flex items-center justify-between border-b border-border bg-white px-4 py-3 shadow-sm lg:px-6">
         <Button variant="ghost" size="sm" onClick={onBack}
           className="gap-2 rounded-lg text-xs text-muted-foreground hover:bg-surface-raised hover:text-navy">
-          <ArrowLeft className="h-3.5 w-3.5" />New invoice
+          <ArrowLeft className="h-3.5 w-3.5" />New document
         </Button>
         <div className="flex items-center gap-2">
           <span className="rounded-md border border-primary/20 bg-primary/8 px-2.5 py-1 font-mono text-[10px] uppercase font-semibold text-primary">{fileExt}</span>
@@ -85,10 +82,10 @@ export default function DocumentViewer({
             <span className="max-w-[200px] truncate font-medium">{file.name}</span>
           </span>
           <span className="font-mono text-[10px] text-muted-foreground">{fileSizeMB} MB</span>
-          {uploading  && <span className="status-pill border border-primary/20 bg-primary/8 text-primary font-semibold"><Loader2 className="h-3 w-3 animate-spin"/>Uploading…</span>}
-          {extracting && !uploading && <span className="status-pill border border-amber-200 bg-amber-50 text-amber-700 font-semibold"><Loader2 className="h-3 w-3 animate-spin"/>Extracting…</span>}
-          {uploadError && <span className="status-pill border border-destructive/20 bg-destructive/8 text-destructive font-semibold"><AlertCircle className="h-3 w-3"/>Failed</span>}
-          {invoiceData && !isLoading && <span className="status-pill border border-primary/20 bg-primary/8 text-primary font-semibold"><CheckCircle2 className="h-3 w-3"/>Done</span>}
+          {extracting && <span className="status-pill border border-amber-200 bg-amber-50 text-amber-700 font-semibold"><Loader2 className="h-3 w-3 animate-spin"/>Extracting…</span>}
+          {uploading  && !extracting && <span className="status-pill border border-primary/20 bg-primary/8 text-primary font-semibold"><Loader2 className="h-3 w-3 animate-spin"/>Indexing…</span>}
+          {uploadError && <span className="status-pill border border-destructive/20 bg-destructive/8 text-destructive font-semibold"><AlertCircle className="h-3 w-3"/>Index failed</span>}
+          {invoiceData && !extracting && <span className="status-pill border border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold"><CheckCircle2 className="h-3 w-3"/>Extracted</span>}
         </div>
       </div>
 
@@ -103,12 +100,15 @@ export default function DocumentViewer({
           </div>
           <div className="flex-1 overflow-auto grid-bg p-4 custom-scroll lg:p-6">
             <div className="mx-auto max-w-xl overflow-hidden rounded-xl border border-border bg-white shadow-lg">
-              {isPdf   ? <iframe src={fileUrl} className="h-[620px] w-full" title="Preview"/>
-              : isImage ? <img src={fileUrl} alt="Invoice" className="w-full object-contain"/>
-              : <div className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground">
-                  <FileText className="h-10 w-10 opacity-20"/>
-                  <p className="text-sm font-medium">Preview unavailable for {fileExt}</p>
-                </div>}
+              {isPdf
+                ? <iframe src={fileUrl} className="h-[620px] w-full" title="Preview"/>
+                : isImage
+                ? <img src={fileUrl} alt="Preview" className="w-full object-contain"/>
+                : <div className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground">
+                    <FileText className="h-10 w-10 opacity-20"/>
+                    <p className="text-sm font-medium">Preview unavailable for {fileExt} files</p>
+                    <p className="text-xs opacity-50">Extracted data shown on the right</p>
+                  </div>}
             </div>
           </div>
         </motion.div>
@@ -118,7 +118,7 @@ export default function DocumentViewer({
           className="flex flex-col bg-surface-raised">
           <div className="flex items-center justify-between border-b border-border bg-white px-5 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold text-navy">
-              <Database className="h-4 w-4 text-primary"/>Extracted Invoice Data
+              <Database className="h-4 w-4 text-primary"/>Extracted Data
             </div>
             {invoiceData && !isLoading && (
               <button onClick={onReExtract}
@@ -131,81 +131,48 @@ export default function DocumentViewer({
           <div className="flex-1 overflow-auto p-5 custom-scroll lg:p-6">
             <AnimatePresence mode="wait">
 
-              {/* Uploading */}
-              {uploading && (
+              {/* ── Extracting (client-side, fast) ── */}
+              {extracting && (
+                <motion.div key="extracting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="flex min-h-[300px] flex-col items-center justify-center gap-5">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50">
+                    <Loader2 className="h-6 w-6 animate-spin text-amber-500"/>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm font-semibold text-navy">Reading document…</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Scanning for structured data</p>
+                  </div>
+                  <div className="w-56">
+                    <div className="h-1 w-full overflow-hidden rounded-full bg-border">
+                      <motion.div className="h-full rounded-full bg-amber-400"
+                        initial={{ width: "0%" }} animate={{ width: "100%" }}
+                        transition={{ duration: 2, ease: "easeInOut" }}/>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ── Uploading to backend (happens after extraction) ── */}
+              {uploading && !extracting && !invoiceData && (
                 <motion.div key="uploading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                   className="flex min-h-[300px] flex-col items-center justify-center gap-5">
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/20 bg-primary/8">
                     <Loader2 className="h-6 w-6 animate-spin text-primary"/>
                   </div>
                   <div className="text-center">
-                    <p className="text-sm font-semibold text-navy">Uploading & indexing…</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Storing document in ChromaDB</p>
+                    <p className="text-sm font-semibold text-navy">Indexing for chat…</p>
+                    <p className="mt-1 text-xs text-muted-foreground">Storing in ChromaDB for Q&amp;A</p>
                   </div>
                 </motion.div>
               )}
 
-              {/* Extracting — show progress bar so client knows it's working */}
-              {extracting && !uploading && (
-                <motion.div key="extracting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="flex min-h-[300px] flex-col items-center justify-center gap-6">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-amber-200 bg-amber-50">
-                    <Loader2 className="h-7 w-7 animate-spin text-amber-500"/>
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-navy">AI is reading your invoice…</p>
-                    <p className="mt-1 text-xs text-muted-foreground">Extracting fields, amounts, line items</p>
-                  </div>
-                  {/* Animated progress bar */}
-                  <div className="w-full max-w-xs">
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
-                      <motion.div
-                        className="h-full rounded-full bg-amber-400"
-                        initial={{ width: "5%" }}
-                        animate={{ width: "85%" }}
-                        transition={{ duration: 8, ease: "easeOut" }}
-                      />
-                    </div>
-                    <p className="mt-2 text-center font-mono text-[10px] text-muted-foreground/60">
-                      This may take 10–30 seconds depending on invoice size
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Upload error */}
-              {uploadError && !uploading && (
-                <motion.div key="upload-error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="space-y-4">
-                  <div className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-4">
-                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive"/>
-                    <div>
-                      <p className="text-sm font-bold text-destructive">Upload failed</p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">Backend returned an error</p>
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-border bg-white">
-                    <div className="flex items-center justify-between border-b border-border px-4 py-2">
-                      <span className="font-mono text-[10px] uppercase text-muted-foreground">Error detail</span>
-                      <button onClick={() => navigator.clipboard.writeText(uploadError ?? "")}
-                        className="rounded px-2 py-1 font-mono text-[10px] text-muted-foreground hover:bg-surface-high">Copy</button>
-                    </div>
-                    <pre className="custom-scroll max-h-40 overflow-auto whitespace-pre-wrap break-all p-4 font-mono text-xs text-destructive/80">{uploadError}</pre>
-                  </div>
-                  <button onClick={onBack}
-                    className="w-full rounded-xl border border-border bg-white py-2.5 text-xs font-medium text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary">
-                    ← Upload a different file
-                  </button>
-                </motion.div>
-              )}
-
-              {/* Extraction error */}
-              {extractError && !extracting && !uploading && (
+              {/* ── Extraction error ── */}
+              {extractError && !extracting && (
                 <motion.div key="extract-error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                   <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
                     <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600"/>
                     <div>
-                      <p className="text-sm font-bold text-amber-700">Could not read invoice data</p>
+                      <p className="text-sm font-bold text-amber-700">Could not read document</p>
                       <p className="mt-1 text-xs text-amber-600/80">{extractError}</p>
                     </div>
                   </div>
@@ -213,31 +180,62 @@ export default function DocumentViewer({
                     className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-white py-2.5 text-xs font-medium text-muted-foreground hover:border-primary/30 hover:text-primary">
                     <RefreshCw className="h-3.5 w-3.5"/>Try again
                   </button>
-                  <p className="text-center text-xs text-muted-foreground">Use the chat widget to ask questions manually.</p>
                 </motion.div>
               )}
 
-              {/* SUCCESS — progressively revealed */}
-              {invoiceData && !isLoading && !extractError && (
+              {/* ── Upload error (non-blocking — data still shown) ── */}
+              {uploadError && invoiceData && !extracting && (
+                <motion.div key="upload-warn" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                  className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500"/>
+                  <p className="text-xs text-amber-700">
+                    <span className="font-semibold">Indexing failed</span> — chat Q&amp;A may be unavailable, but extracted data is shown below.
+                  </p>
+                </motion.div>
+              )}
+
+              {/* ── Upload error only (no extracted data) ── */}
+              {uploadError && !invoiceData && !extracting && !extractError && (
+                <motion.div key="upload-error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                  className="space-y-4">
+                  <div className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/5 p-4">
+                    <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-destructive"/>
+                    <div>
+                      <p className="text-sm font-bold text-destructive">Upload failed</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">Could not index document for chat</p>
+                    </div>
+                  </div>
+                  <pre className="custom-scroll max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-xl border border-border bg-white p-4 font-mono text-xs text-destructive/80">
+                    {uploadError}
+                  </pre>
+                  <button onClick={onBack}
+                    className="w-full rounded-xl border border-border bg-white py-2.5 text-xs font-medium text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary">
+                    ← Upload a different file
+                  </button>
+                </motion.div>
+              )}
+
+              {/* ── SUCCESS ── */}
+              {invoiceData && !extracting && !extractError && (
                 <motion.div key="data" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
 
-                  {/* Summary — shows first */}
+                  {/* Summary */}
                   {invoiceData.summary && (
-                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0 }}
+                    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                       className="rounded-xl border border-primary/15 bg-gradient-to-br from-primary/6 to-primary/3 p-4">
-                      <div className="mb-2 flex items-center gap-2">
+                      <div className="mb-1.5 flex items-center gap-2">
                         <CheckCircle2 className="h-4 w-4 text-primary"/>
-                        <p className="text-sm font-bold text-primary">Invoice Summary</p>
+                        <p className="text-xs font-bold uppercase tracking-wider text-primary">Summary</p>
                       </div>
                       <p className="text-sm leading-relaxed text-navy/80">{invoiceData.summary}</p>
                     </motion.div>
                   )}
 
-                  {/* Sections — appear one by one */}
+                  {/* Sections — progressive reveal */}
                   {invoiceData.sections.slice(0, visibleCount).map((section, si) => (
-                    <motion.div key={section.section}
+                    <motion.div key={`${section.section}-${si}`}
                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.25 }}
+                      transition={{ duration: 0.2 }}
                       className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
                       <button onClick={() => toggle(section.section)}
                         className="flex w-full items-center justify-between px-4 py-3 hover:bg-surface-raised transition-colors">
@@ -252,10 +250,10 @@ export default function DocumentViewer({
                             className="overflow-hidden border-t border-border/50">
                             <div className="grid grid-cols-1 gap-2 p-4 sm:grid-cols-2">
                               {section.fields.map((field, fi) => (
-                                <motion.div key={field.key}
+                                <motion.div key={`${field.key}-${fi}`}
                                   initial={{ opacity: 0, scale: 0.97 }}
                                   animate={{ opacity: 1, scale: 1 }}
-                                  transition={{ delay: fi * 0.04 }}
+                                  transition={{ delay: fi * 0.03 }}
                                   className={`rounded-lg border p-3 ${COLORS[fi % COLORS.length]}`}>
                                   <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{field.key}</p>
                                   <p className="mt-0.5 break-words text-sm font-semibold text-navy">{field.value || "—"}</p>
@@ -268,7 +266,7 @@ export default function DocumentViewer({
                     </motion.div>
                   ))}
 
-                  {/* Line items — appears last */}
+                  {/* Table / line items */}
                   {invoiceData.line_items && invoiceData.line_items.rows.length > 0 &&
                     visibleCount > invoiceData.sections.length && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -276,7 +274,7 @@ export default function DocumentViewer({
                       <button onClick={() => setLineItemsOpen(v => !v)}
                         className="flex w-full items-center justify-between px-4 py-3 hover:bg-surface-raised transition-colors">
                         <p className="text-xs font-bold uppercase tracking-wider text-navy">
-                          Line Items ({invoiceData.line_items.rows.length})
+                          Table Data ({invoiceData.line_items.rows.length} rows)
                         </p>
                         {lineItemsOpen
                           ? <ChevronUp   className="h-3.5 w-3.5 text-muted-foreground"/>
@@ -290,8 +288,8 @@ export default function DocumentViewer({
                               <table className="w-full text-xs">
                                 <thead>
                                   <tr className="bg-surface-raised">
-                                    {invoiceData.line_items.headers.map(h => (
-                                      <th key={h} className="px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h}</th>
+                                    {invoiceData.line_items.headers.map((h, hi) => (
+                                      <th key={hi} className="px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h}</th>
                                     ))}
                                   </tr>
                                 </thead>
@@ -299,7 +297,7 @@ export default function DocumentViewer({
                                   {invoiceData.line_items.rows.map((row, ri) => (
                                     <tr key={ri} className={`border-t border-border/40 ${ri % 2 === 1 ? "bg-surface-raised/40" : ""}`}>
                                       {row.map((cell, ci) => (
-                                        <td key={ci} className={`px-4 py-2.5 ${ci === 0 ? "font-medium text-navy" : "text-right text-muted-foreground"}`}>{cell}</td>
+                                        <td key={ci} className="px-4 py-2.5 text-muted-foreground">{cell}</td>
                                       ))}
                                     </tr>
                                   ))}
@@ -313,26 +311,30 @@ export default function DocumentViewer({
                   )}
 
                   {/* Footer */}
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
                     className="flex items-center gap-3 rounded-xl border border-border bg-white p-3.5 shadow-sm">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                       <HardDrive className="h-3.5 w-3.5 text-primary"/>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      <span className="font-semibold text-navy">{ingestResult?.chunks} chunks</span> indexed ·
-                      Use the <span className="font-semibold text-primary">chat widget</span> for deeper questions.
+                      {ingestResult
+                        ? <><span className="font-semibold text-navy">{ingestResult.chunks} chunks</span> indexed · Use the <span className="font-semibold text-primary">chat widget</span> for questions.</>
+                        : uploading
+                        ? "Indexing for chat…"
+                        : "Extracted client-side · Use the chat widget to ask questions."}
                     </p>
                   </motion.div>
                 </motion.div>
               )}
 
-              {/* Empty */}
-              {!uploading && !extracting && !uploadError && !ingestResult && (
+              {/* ── Empty / waiting ── */}
+              {!uploading && !extracting && !uploadError && !extractError && !invoiceData && (
                 <motion.div key="empty" className="flex min-h-[300px] flex-col items-center justify-center gap-3 text-muted-foreground">
                   <Database className="h-10 w-10 opacity-20"/>
-                  <p className="text-sm opacity-60">Awaiting upload…</p>
+                  <p className="text-sm opacity-60">Awaiting file…</p>
                 </motion.div>
               )}
+
             </AnimatePresence>
           </div>
         </motion.div>

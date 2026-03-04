@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  MessageCircle, X, Send, Bot, Sparkles, AlertCircle,
+  MessageCircle, X, Send, Bot, AlertCircle,
   FileText, ChevronDown, RotateCcw, Copy, Check,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,13 +16,6 @@ interface Message {
   error?: boolean;
 }
 interface ChatWidgetProps { fileName: string; }
-
-const SUGGESTIONS = [
-  "What is the total amount due?",
-  "Who is the vendor / billed to?",
-  "What is the invoice date & due date?",
-  "List all line items with amounts",
-];
 
 const TypingDots = () => (
   <div className="flex items-end gap-2">
@@ -51,13 +44,13 @@ const CopyButton = ({ text }: { text: string }) => {
 };
 
 const ChatWidget = ({ fileName }: ChatWidgetProps) => {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen]       = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
-  const [input, setInput] = useState("");
+  const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef  = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (atBottom && scrollRef.current)
@@ -152,7 +145,7 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
                   </span>
                 </div>
                 <div>
-                  <p className="text-sm font-bold text-navy">Invoice Assistant</p>
+                  <p className="text-sm font-bold text-navy">Document Assistant</p>
                   <p className="flex items-center gap-1 font-mono text-[10px] text-primary/70">
                     <span className="h-1.5 w-1.5 rounded-full bg-primary" />
                     {fileName}
@@ -175,23 +168,16 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
 
             {/* Messages */}
             <div ref={scrollRef} onScroll={handleScroll} className="relative flex-1 space-y-4 overflow-auto p-4 custom-scroll bg-surface-raised">
+
+              {/* Empty state — plain, no suggestions */}
               {messages.length === 0 && (
-                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3 pt-2">
-                  <div className="flex items-center justify-center gap-2 text-muted-foreground">
-                    <Sparkles className="h-4 w-4 text-primary" />
-                    <p className="text-xs font-medium">Ask about the indexed invoice:</p>
+                <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+                  className="flex flex-col items-center justify-center gap-3 pt-16 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-primary/8">
+                    <Bot className="h-6 w-6 text-primary" />
                   </div>
-                  <div className="grid gap-2">
-                    {SUGGESTIONS.map((s) => (
-                      <button key={s} onClick={() => sendMessage(s)}
-                        className="group rounded-xl border border-border bg-white px-3.5 py-2.5 text-left text-xs text-muted-foreground shadow-sm transition-all hover:border-primary/30 hover:bg-primary/5 hover:text-primary">
-                        <span className="flex items-center justify-between">
-                          {s}
-                          <ChevronDown className="h-3 w-3 -rotate-90 opacity-0 transition-all group-hover:opacity-60" />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  <p className="text-sm font-semibold text-navy">Ask anything about this document</p>
+                  <p className="text-xs text-muted-foreground">Type your question below to get started</p>
                 </motion.div>
               )}
 
@@ -248,7 +234,7 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
                   onClick={() => scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })}
                   className="absolute bottom-20 left-1/2 -translate-x-1/2 flex items-center gap-1.5 rounded-full border border-border bg-white px-3 py-1.5 text-xs text-muted-foreground shadow-md hover:text-navy">
                   <ChevronDown className="h-3 w-3" />
-                  New messages
+                  Scroll down
                 </motion.button>
               )}
             </AnimatePresence>
@@ -260,7 +246,7 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
                   ref={inputRef}
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder="Ask about your invoice…"
+                  placeholder="Ask about this document…"
                   disabled={loading}
                   className="flex-1 rounded-xl border-border bg-surface-raised text-sm text-navy placeholder:text-muted-foreground/60 focus-visible:border-primary/40 focus-visible:ring-primary/20"
                 />

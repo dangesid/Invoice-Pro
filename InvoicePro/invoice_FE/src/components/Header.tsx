@@ -48,7 +48,7 @@ const Header = () => {
             </div>
             <div>
               <h1 className="font-heading text-lg font-bold leading-none text-navy">
-                Invoice<span className="brand-text">Pro</span>
+                Invoice<span className="brand-text">Pro AI</span>
               </h1>
               <p className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
                 RAG · Ollama · ChromaDB
