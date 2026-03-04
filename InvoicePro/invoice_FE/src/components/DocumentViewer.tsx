@@ -1,10 +1,11 @@
 import {
   ArrowLeft, FileText, Eye, Database, Loader2, AlertCircle,
   CheckCircle2, HardDrive, RefreshCw, ChevronDown, ChevronUp,
+  Sheet,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { IngestResult, InvoiceData } from "@/pages/Index";
 
 interface Props {
@@ -30,6 +31,7 @@ const COLORS = [
   "border-slate-100 bg-slate-50/70",
 ];
 
+// ── Progressive reveal ────────────────────────────────────────────────────────
 function useProgressiveReveal(data: InvoiceData | null) {
   const [visibleCount, setVisibleCount] = useState(0);
   useEffect(() => {
@@ -47,20 +49,171 @@ function useProgressiveReveal(data: InvoiceData | null) {
   return visibleCount;
 }
 
+// ── Excel / CSV preview ───────────────────────────────────────────────────────
+interface SheetData {
+  name: string;
+  headers: string[];
+  rows: string[][];
+}
+
+function useSheetPreview(file: File, isSpreadsheet: boolean) {
+  const [sheets, setSheets]   = useState<SheetData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+
+  useEffect(() => {
+    if (!isSpreadsheet) return;
+    setLoading(true);
+    setError("");
+    setSheets([]);
+
+    const load = async () => {
+      try {
+        // Load SheetJS from CDN if not already present
+        if (!(window as any).XLSX) {
+          await new Promise<void>((resolve, reject) => {
+            const s = document.createElement("script");
+            s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+            s.onload  = () => resolve();
+            s.onerror = () => reject(new Error("Failed to load SheetJS"));
+            document.head.appendChild(s);
+          });
+        }
+        const XLSX = (window as any).XLSX;
+
+        const buf  = await file.arrayBuffer();
+        const wb   = XLSX.read(buf, { type: "array" });
+        const result: SheetData[] = [];
+
+        for (const sheetName of wb.SheetNames) {
+          const ws  = wb.Sheets[sheetName];
+          const raw: string[][] = XLSX.utils.sheet_to_json(ws, {
+            header: 1,
+            defval: "",
+            raw: false,
+          });
+
+          if (raw.length === 0) continue;
+
+          // First non-empty row = headers
+          const headers = (raw[0] as string[]).map(String);
+          const rows    = raw.slice(1).map(r =>
+            (r as string[]).map(String)
+          );
+
+          result.push({ name: sheetName, headers, rows });
+        }
+
+        setSheets(result);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not parse spreadsheet");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    load();
+  }, [file, isSpreadsheet]);
+
+  return { sheets, loading, error };
+}
+
+// ── CSV preview ───────────────────────────────────────────────────────────────
+function useCsvPreview(file: File, isCsv: boolean) {
+  const [sheet, setSheet]     = useState<SheetData | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isCsv) return;
+    setLoading(true);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text   = (e.target?.result as string) ?? "";
+      const lines  = text.split(/\r?\n/).filter(Boolean);
+      if (lines.length === 0) { setLoading(false); return; }
+      const delim  = lines[0].includes("\t") ? "\t" : ",";
+      const parse  = (l: string) => l.split(delim).map(c => c.replace(/^"|"$/g, "").trim());
+      const headers = parse(lines[0]);
+      const rows    = lines.slice(1, 501).map(parse);
+      setSheet({ name: file.name, headers, rows });
+      setLoading(false);
+    };
+    reader.readAsText(file);
+  }, [file, isCsv]);
+
+  return { sheet, loading };
+}
+
+// ── Spreadsheet table renderer ────────────────────────────────────────────────
+function SpreadsheetTable({ headers, rows, maxRows = 200 }: {
+  headers: string[];
+  rows: string[][];
+  maxRows?: number;
+}) {
+  const visible = rows.slice(0, maxRows);
+  return (
+    <div className="overflow-auto">
+      <table className="w-full border-collapse text-xs">
+        <thead className="sticky top-0 z-10">
+          <tr>
+            <th className="w-8 border border-border bg-slate-100 px-2 py-1.5 text-center font-mono text-[10px] text-muted-foreground">#</th>
+            {headers.map((h, i) => (
+              <th key={i}
+                className="min-w-[80px] border border-border bg-slate-100 px-3 py-1.5 text-left font-semibold text-navy whitespace-nowrap">
+                {h || <span className="text-muted-foreground/40">Col {i + 1}</span>}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {visible.map((row, ri) => (
+            <tr key={ri} className={ri % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
+              <td className="border border-border/50 px-2 py-1 text-center font-mono text-[10px] text-muted-foreground/50">
+                {ri + 1}
+              </td>
+              {headers.map((_, ci) => (
+                <td key={ci}
+                  className="max-w-[200px] truncate border border-border/50 px-3 py-1.5 text-navy/80">
+                  {row[ci] ?? ""}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {rows.length > maxRows && (
+        <p className="border-t border-border bg-slate-50 px-4 py-2 text-center font-mono text-[10px] text-muted-foreground">
+          Showing {maxRows} of {rows.length} rows
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 export default function DocumentViewer({
   file, ingestResult, invoiceData,
   uploading, extracting, uploadError, extractError,
   onBack, onReExtract,
 }: Props) {
-  const fileUrl    = URL.createObjectURL(file);
-  const isPdf      = file.type === "application/pdf";
+  const fileUrl    = useMemo(() => URL.createObjectURL(file), [file]);
+  useEffect(() => () => URL.revokeObjectURL(fileUrl), [fileUrl]);
+
+  const ext        = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const isPdf      = file.type === "application/pdf" || ext === "pdf";
   const isImage    = file.type.startsWith("image/");
-  const fileExt    = file.name.split(".").pop()?.toUpperCase() ?? "FILE";
+  const isXlsx     = file.type.includes("spreadsheet") || file.type.includes("excel") || ext === "xlsx" || ext === "xls";
+  const isCsv      = ext === "csv" || ext === "tsv";
+  const fileExt    = ext.toUpperCase() || "FILE";
   const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
 
-  const [collapsed, setCollapsed]       = useState<Record<string, boolean>>({});
+  const [collapsed, setCollapsed]         = useState<Record<string, boolean>>({});
   const [lineItemsOpen, setLineItemsOpen] = useState(true);
+  const [activeSheet, setActiveSheet]     = useState(0);
   const visibleCount = useProgressiveReveal(invoiceData);
+
+  const { sheets: xlsSheets, loading: xlsLoading, error: xlsError } = useSheetPreview(file, isXlsx);
+  const { sheet: csvSheet, loading: csvLoading }                      = useCsvPreview(file, isCsv);
 
   const toggle    = (s: string) => setCollapsed(p => ({ ...p, [s]: !p[s] }));
   const isLoading = uploading || extracting;
@@ -83,7 +236,7 @@ export default function DocumentViewer({
           </span>
           <span className="font-mono text-[10px] text-muted-foreground">{fileSizeMB} MB</span>
           {extracting && <span className="status-pill border border-amber-200 bg-amber-50 text-amber-700 font-semibold"><Loader2 className="h-3 w-3 animate-spin"/>Extracting…</span>}
-          {uploading  && !extracting && <span className="status-pill border border-primary/20 bg-primary/8 text-primary font-semibold"><Loader2 className="h-3 w-3 animate-spin"/>Indexing…</span>}
+          {uploading && !extracting && <span className="status-pill border border-primary/20 bg-primary/8 text-primary font-semibold"><Loader2 className="h-3 w-3 animate-spin"/>Indexing…</span>}
           {uploadError && <span className="status-pill border border-destructive/20 bg-destructive/8 text-destructive font-semibold"><AlertCircle className="h-3 w-3"/>Index failed</span>}
           {invoiceData && !extracting && <span className="status-pill border border-emerald-200 bg-emerald-50 text-emerald-700 font-semibold"><CheckCircle2 className="h-3 w-3"/>Extracted</span>}
         </div>
@@ -98,18 +251,106 @@ export default function DocumentViewer({
           <div className="flex items-center gap-2 border-b border-border bg-surface-raised px-5 py-3 text-sm font-semibold text-navy">
             <Eye className="h-4 w-4 text-primary"/>Document Preview
           </div>
+
           <div className="flex-1 overflow-auto grid-bg p-4 custom-scroll lg:p-6">
-            <div className="mx-auto max-w-xl overflow-hidden rounded-xl border border-border bg-white shadow-lg">
-              {isPdf
-                ? <iframe src={fileUrl} className="h-[620px] w-full" title="Preview"/>
-                : isImage
-                ? <img src={fileUrl} alt="Preview" className="w-full object-contain"/>
-                : <div className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground">
-                    <FileText className="h-10 w-10 opacity-20"/>
-                    <p className="text-sm font-medium">Preview unavailable for {fileExt} files</p>
-                    <p className="text-xs opacity-50">Extracted data shown on the right</p>
-                  </div>}
-            </div>
+
+            {/* PDF */}
+            {isPdf && (
+              <div className="mx-auto max-w-xl overflow-hidden rounded-xl border border-border bg-white shadow-lg">
+                <iframe src={fileUrl} className="h-[620px] w-full" title="Preview"/>
+              </div>
+            )}
+
+            {/* Image */}
+            {isImage && (
+              <div className="mx-auto max-w-xl overflow-hidden rounded-xl border border-border bg-white shadow-lg">
+                <img src={fileUrl} alt="Preview" className="w-full object-contain"/>
+              </div>
+            )}
+
+            {/* Excel / XLSX */}
+            {isXlsx && (
+              <div className="overflow-hidden rounded-xl border border-border bg-white shadow-lg">
+                {xlsLoading && (
+                  <div className="flex h-48 flex-col items-center justify-center gap-3 text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary"/>
+                    <p className="text-xs">Loading spreadsheet…</p>
+                  </div>
+                )}
+                {xlsError && (
+                  <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
+                    <AlertCircle className="h-6 w-6 text-amber-400"/>
+                    <p className="text-xs">{xlsError}</p>
+                  </div>
+                )}
+                {!xlsLoading && !xlsError && xlsSheets.length > 0 && (
+                  <>
+                    {/* Sheet tabs */}
+                    {xlsSheets.length > 1 && (
+                      <div className="flex gap-1 overflow-x-auto border-b border-border bg-surface-raised px-3 pt-2">
+                        {xlsSheets.map((s, i) => (
+                          <button key={i} onClick={() => setActiveSheet(i)}
+                            className={`flex items-center gap-1.5 rounded-t-lg border border-b-0 px-3 py-1.5 text-xs font-medium transition-colors ${
+                              activeSheet === i
+                                ? "border-border bg-white text-navy"
+                                : "border-transparent text-muted-foreground hover:text-navy"
+                            }`}>
+                            <Sheet className="h-3 w-3"/>
+                            {s.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {/* Sheet header info */}
+                    <div className="flex items-center gap-2 border-b border-border bg-slate-50 px-4 py-2">
+                      <Sheet className="h-3.5 w-3.5 text-emerald-600"/>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {xlsSheets[activeSheet]?.headers.length} columns · {xlsSheets[activeSheet]?.rows.length} rows
+                      </span>
+                    </div>
+                    <SpreadsheetTable
+                      headers={xlsSheets[activeSheet]?.headers ?? []}
+                      rows={xlsSheets[activeSheet]?.rows ?? []}
+                    />
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* CSV / TSV */}
+            {isCsv && (
+              <div className="overflow-hidden rounded-xl border border-border bg-white shadow-lg">
+                {csvLoading && (
+                  <div className="flex h-48 flex-col items-center justify-center gap-3 text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin text-primary"/>
+                    <p className="text-xs">Parsing CSV…</p>
+                  </div>
+                )}
+                {!csvLoading && csvSheet && (
+                  <>
+                    <div className="flex items-center gap-2 border-b border-border bg-slate-50 px-4 py-2">
+                      <FileText className="h-3.5 w-3.5 text-primary"/>
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        {csvSheet.headers.length} columns · {csvSheet.rows.length} rows
+                      </span>
+                    </div>
+                    <SpreadsheetTable headers={csvSheet.headers} rows={csvSheet.rows}/>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Unsupported */}
+            {!isPdf && !isImage && !isXlsx && !isCsv && (
+              <div className="mx-auto max-w-xl overflow-hidden rounded-xl border border-border bg-white shadow-lg">
+                <div className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground">
+                  <FileText className="h-10 w-10 opacity-20"/>
+                  <p className="text-sm font-medium">Preview unavailable for {fileExt} files</p>
+                  <p className="text-xs opacity-50">Extracted data shown on the right</p>
+                </div>
+              </div>
+            )}
+
           </div>
         </motion.div>
 
@@ -131,7 +372,7 @@ export default function DocumentViewer({
           <div className="flex-1 overflow-auto p-5 custom-scroll lg:p-6">
             <AnimatePresence mode="wait">
 
-              {/* ── Extracting (client-side, fast) ── */}
+              {/* Extracting */}
               {extracting && (
                 <motion.div key="extracting" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                   className="flex min-h-[300px] flex-col items-center justify-center gap-5">
@@ -152,7 +393,7 @@ export default function DocumentViewer({
                 </motion.div>
               )}
 
-              {/* ── Uploading to backend (happens after extraction) ── */}
+              {/* Uploading to backend */}
               {uploading && !extracting && !invoiceData && (
                 <motion.div key="uploading" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                   className="flex min-h-[300px] flex-col items-center justify-center gap-5">
@@ -166,7 +407,7 @@ export default function DocumentViewer({
                 </motion.div>
               )}
 
-              {/* ── Extraction error ── */}
+              {/* Extraction error */}
               {extractError && !extracting && (
                 <motion.div key="extract-error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
                   <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
@@ -183,7 +424,7 @@ export default function DocumentViewer({
                 </motion.div>
               )}
 
-              {/* ── Upload error (non-blocking — data still shown) ── */}
+              {/* Upload warning (non-blocking) */}
               {uploadError && invoiceData && !extracting && (
                 <motion.div key="upload-warn" initial={{ opacity: 0 }} animate={{ opacity: 1 }}
                   className="mb-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
@@ -194,7 +435,7 @@ export default function DocumentViewer({
                 </motion.div>
               )}
 
-              {/* ── Upload error only (no extracted data) ── */}
+              {/* Upload error only */}
               {uploadError && !invoiceData && !extracting && !extractError && (
                 <motion.div key="upload-error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                   className="space-y-4">
@@ -215,7 +456,7 @@ export default function DocumentViewer({
                 </motion.div>
               )}
 
-              {/* ── SUCCESS ── */}
+              {/* SUCCESS */}
               {invoiceData && !extracting && !extractError && (
                 <motion.div key="data" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
 
@@ -231,7 +472,7 @@ export default function DocumentViewer({
                     </motion.div>
                   )}
 
-                  {/* Sections — progressive reveal */}
+                  {/* Sections */}
                   {invoiceData.sections.slice(0, visibleCount).map((section, si) => (
                     <motion.div key={`${section.section}-${si}`}
                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -266,7 +507,7 @@ export default function DocumentViewer({
                     </motion.div>
                   ))}
 
-                  {/* Table / line items */}
+                  {/* Table */}
                   {invoiceData.line_items && invoiceData.line_items.rows.length > 0 &&
                     visibleCount > invoiceData.sections.length && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -327,7 +568,7 @@ export default function DocumentViewer({
                 </motion.div>
               )}
 
-              {/* ── Empty / waiting ── */}
+              {/* Empty */}
               {!uploading && !extracting && !uploadError && !extractError && !invoiceData && (
                 <motion.div key="empty" className="flex min-h-[300px] flex-col items-center justify-center gap-3 text-muted-foreground">
                   <Database className="h-10 w-10 opacity-20"/>
