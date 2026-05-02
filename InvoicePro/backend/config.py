@@ -23,6 +23,16 @@ class Config:
     # ─── App ─────────────────────────────────────────────────────
     MAX_FILE_SIZE_MB: int = int(os.getenv("MAX_FILE_SIZE_MB", 50))
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    
+    # ─── Auth ────────────────────────────────────────────────────
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-fallback")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 24 * 60 # 1 day
+
+    # ─── Storage ─────────────────────────────────────────────────
+    UPLOAD_DIR: str = "uploads"
+    EXTRACTED_TEXT_DIR: str = "extracted_text"
+    CHROMA_PATH: str = "processed_reports/chroma_db"
 
     @classmethod
     def validate(cls):

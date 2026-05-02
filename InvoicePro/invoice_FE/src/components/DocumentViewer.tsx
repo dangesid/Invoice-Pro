@@ -22,23 +22,23 @@ interface Props {
 }
 
 const COLORS = [
-  "border-blue-100 bg-blue-50/70",
-  "border-violet-100 bg-violet-50/70",
-  "border-amber-100 bg-amber-50/70",
-  "border-emerald-100 bg-emerald-50/70",
-  "border-rose-100 bg-rose-50/70",
-  "border-cyan-100 bg-cyan-50/70",
-  "border-orange-100 bg-orange-50/70",
-  "border-slate-100 bg-slate-50/70",
+  "border-blue-500/20 bg-blue-500/5",
+  "border-violet-500/20 bg-violet-500/5",
+  "border-amber-500/20 bg-amber-500/5",
+  "border-emerald-500/20 bg-emerald-500/5",
+  "border-rose-500/20 bg-rose-500/5",
+  "border-cyan-500/20 bg-cyan-500/5",
+  "border-orange-500/20 bg-orange-500/5",
+  "border-slate-500/20 bg-slate-500/5",
 ];
 
 // ── Progressive reveal ────────────────────────────────────────────────────────
 function useProgressiveReveal(data: InvoiceData | null) {
   const [visibleCount, setVisibleCount] = useState(0);
   useEffect(() => {
-    if (!data) { setVisibleCount(0); return; }
+    if (!data || !data.sections) { setVisibleCount(0); return; }
     setVisibleCount(0);
-    const total = data.sections.length + (data.line_items ? 1 : 0);
+    const total = (data.sections?.length || 0) + (data.line_items ? 1 : 0);
     let i = 0;
     const timer = setInterval(() => {
       i++;
@@ -157,10 +157,10 @@ function SpreadsheetTable({ headers, rows, maxRows = 200 }: {
       <table className="w-full border-collapse text-xs">
         <thead className="sticky top-0 z-10">
           <tr>
-            <th className="w-8 border border-border bg-slate-100 px-2 py-1.5 text-center font-mono text-[10px] text-muted-foreground">#</th>
+            <th className="w-8 border border-border bg-muted/50 px-2 py-1.5 text-center font-mono text-[10px] text-muted-foreground">#</th>
             {headers.map((h, i) => (
               <th key={i}
-                className="min-w-[80px] border border-border bg-slate-100 px-3 py-1.5 text-left font-semibold text-navy whitespace-nowrap">
+                className="min-w-[80px] border border-border bg-muted/50 px-3 py-1.5 text-left font-semibold whitespace-nowrap">
                 {h || <span className="text-muted-foreground/40">Col {i + 1}</span>}
               </th>
             ))}
@@ -168,7 +168,7 @@ function SpreadsheetTable({ headers, rows, maxRows = 200 }: {
         </thead>
         <tbody>
           {visible.map((row, ri) => (
-            <tr key={ri} className={ri % 2 === 0 ? "bg-white" : "bg-slate-50/60"}>
+            <tr key={ri} className={ri % 2 === 0 ? "bg-card" : "bg-muted/30"}>
               <td className="border border-border/50 px-2 py-1 text-center font-mono text-[10px] text-muted-foreground/50">
                 {ri + 1}
               </td>
@@ -276,7 +276,7 @@ export default function DocumentViewer({
       className="flex h-full flex-col">
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between border-b border-border bg-white px-4 py-3 shadow-sm lg:px-6">
+      <div className="flex items-center justify-between border-b border-border bg-background px-4 py-3 shadow-sm lg:px-6">
         <Button variant="ghost" size="sm" onClick={onBack}
           className="gap-2 rounded-lg text-xs text-muted-foreground hover:bg-surface-raised hover:text-navy">
           <ArrowLeft className="h-3.5 w-3.5" />New document
@@ -301,7 +301,7 @@ export default function DocumentViewer({
         {/* Left — preview */}
         <motion.div initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}
           className="flex flex-col border-r border-border">
-          <div className="flex items-center gap-2 border-b border-border bg-surface-raised px-5 py-3 text-sm font-semibold text-navy">
+          <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-5 py-3 text-sm font-semibold">
             <Eye className="h-4 w-4 text-primary"/>Document Preview
           </div>
 
@@ -309,21 +309,21 @@ export default function DocumentViewer({
 
             {/* PDF */}
             {isPdf && (
-              <div className="mx-auto max-w-xl overflow-hidden rounded-xl border border-border bg-white shadow-lg">
+              <div className="mx-auto max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-lg">
                 <iframe src={fileUrl} className="h-[620px] w-full" title="Preview"/>
               </div>
             )}
 
             {/* Image */}
             {isImage && (
-              <div className="mx-auto max-w-xl overflow-hidden rounded-xl border border-border bg-white shadow-lg">
+              <div className="mx-auto max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-lg">
                 <img src={fileUrl} alt="Preview" className="w-full object-contain"/>
               </div>
             )}
 
             {/* Excel / XLSX */}
             {isXlsx && (
-              <div className="overflow-hidden rounded-xl border border-border bg-white shadow-lg">
+              <div className="overflow-hidden rounded-xl border border-border bg-card shadow-lg">
                 {xlsLoading && (
                   <div className="flex h-48 flex-col items-center justify-center gap-3 text-muted-foreground">
                     <Loader2 className="h-6 w-6 animate-spin text-primary"/>
@@ -345,8 +345,8 @@ export default function DocumentViewer({
                           <button key={i} onClick={() => setActiveSheet(i)}
                             className={`flex items-center gap-1.5 rounded-t-lg border border-b-0 px-3 py-1.5 text-xs font-medium transition-colors ${
                               activeSheet === i
-                                ? "border-border bg-white text-navy"
-                                : "border-transparent text-muted-foreground hover:text-navy"
+                                ? "border-border bg-card text-foreground"
+                                : "border-transparent text-muted-foreground hover:text-foreground"
                             }`}>
                             <Sheet className="h-3 w-3"/>
                             {s.name}
@@ -355,7 +355,7 @@ export default function DocumentViewer({
                       </div>
                     )}
                     {/* Sheet header info */}
-                    <div className="flex items-center gap-2 border-b border-border bg-slate-50 px-4 py-2">
+                    <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-4 py-2">
                       <Sheet className="h-3.5 w-3.5 text-emerald-600"/>
                       <span className="font-mono text-[10px] text-muted-foreground">
                         {xlsSheets[activeSheet]?.headers.length} columns · {xlsSheets[activeSheet]?.rows.length} rows
@@ -372,7 +372,7 @@ export default function DocumentViewer({
 
             {/* CSV / TSV */}
             {isCsv && (
-              <div className="overflow-hidden rounded-xl border border-border bg-white shadow-lg">
+              <div className="overflow-hidden rounded-xl border border-border bg-card shadow-lg">
                 {csvLoading && (
                   <div className="flex h-48 flex-col items-center justify-center gap-3 text-muted-foreground">
                     <Loader2 className="h-6 w-6 animate-spin text-primary"/>
@@ -395,7 +395,7 @@ export default function DocumentViewer({
 
             {/* Unsupported */}
             {!isPdf && !isImage && !isXlsx && !isCsv && (
-              <div className="mx-auto max-w-xl overflow-hidden rounded-xl border border-border bg-white shadow-lg">
+              <div className="mx-auto max-w-xl overflow-hidden rounded-xl border border-border bg-card shadow-lg">
                 <div className="flex h-64 flex-col items-center justify-center gap-3 text-muted-foreground">
                   <FileText className="h-10 w-10 opacity-20"/>
                   <p className="text-sm font-medium">Preview unavailable for {fileExt} files</p>
@@ -409,21 +409,24 @@ export default function DocumentViewer({
 
         {/* Right — extracted data */}
         <motion.div initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.2 }}
-          className="flex flex-col bg-surface-raised">
-          <div className="flex items-center justify-between border-b border-border bg-white px-5 py-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-navy">
+          className="flex flex-col bg-muted/5">
+          <div className="flex items-center justify-between border-b border-border bg-background px-5 py-3">
+            <div className="flex items-center gap-2 text-sm font-semibold">
               <Database className="h-4 w-4 text-primary"/>Extracted Data
             </div>
-            {invoiceData && !isLoading && (
+            {(invoiceData || extracting) && (
               <div className="flex items-center gap-1">
-                <button onClick={onReExtract}
-                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-surface-high hover:text-navy">
-                  <RefreshCw className="h-3 w-3"/>Re-extract
+                <button 
+                  onClick={onReExtract}
+                  disabled={isLoading}
+                  className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground disabled:opacity-30"
+                >
+                  <RefreshCw className={`h-3 w-3 ${extracting ? 'animate-spin' : ''}`}/>Re-extract
                 </button>
                 <button
                   onClick={handleSaveJson}
-                  disabled={saving}
-                  title="Save extracted data as JSON"
+                  disabled={saving || !invoiceData || extracting}
+                  title={!invoiceData ? "Extracting data..." : "Save extracted data as JSON"}
                   className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all ${
                     saveMsg === "saved"
                       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -480,7 +483,7 @@ export default function DocumentViewer({
               {/* Extraction error */}
               {extractError && !extracting && (
                 <motion.div key="extract-error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-                  <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-start gap-3 rounded-xl border border-amber-200/20 bg-amber-500/5 p-4">
                     <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600"/>
                     <div>
                       <p className="text-sm font-bold text-amber-700">Could not read document</p>
@@ -488,7 +491,7 @@ export default function DocumentViewer({
                     </div>
                   </div>
                   <button onClick={onReExtract}
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-white py-2.5 text-xs font-medium text-muted-foreground hover:border-primary/30 hover:text-primary">
+                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-2.5 text-xs font-medium text-muted-foreground hover:border-primary/30 hover:text-primary">
                     <RefreshCw className="h-3.5 w-3.5"/>Try again
                   </button>
                 </motion.div>
@@ -516,11 +519,11 @@ export default function DocumentViewer({
                       <p className="mt-0.5 text-xs text-muted-foreground">Could not index document for chat</p>
                     </div>
                   </div>
-                  <pre className="custom-scroll max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-xl border border-border bg-white p-4 font-mono text-xs text-destructive/80">
+                  <pre className="custom-scroll max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-xl border border-border bg-card p-4 font-mono text-xs text-destructive/80">
                     {uploadError}
                   </pre>
                   <button onClick={onBack}
-                    className="w-full rounded-xl border border-border bg-white py-2.5 text-xs font-medium text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary">
+                    className="w-full rounded-xl border border-border bg-card py-2.5 text-xs font-medium text-muted-foreground hover:border-primary/30 hover:bg-primary/5 hover:text-primary">
                     ← Upload a different file
                   </button>
                 </motion.div>
@@ -538,19 +541,19 @@ export default function DocumentViewer({
                         <CheckCircle2 className="h-4 w-4 text-primary"/>
                         <p className="text-xs font-bold uppercase tracking-wider text-primary">Summary</p>
                       </div>
-                      <p className="text-sm leading-relaxed text-navy/80">{invoiceData.summary}</p>
+                      <p className="text-sm leading-relaxed opacity-90">{invoiceData.summary}</p>
                     </motion.div>
                   )}
 
                   {/* Sections */}
-                  {invoiceData.sections.slice(0, visibleCount).map((section, si) => (
+                  {invoiceData.sections?.slice(0, visibleCount).map((section, si) => (
                     <motion.div key={`${section.section}-${si}`}
                       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                       transition={{ duration: 0.2 }}
-                      className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+                      className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
                       <button onClick={() => toggle(section.section)}
-                        className="flex w-full items-center justify-between px-4 py-3 hover:bg-surface-raised transition-colors">
-                        <p className="text-xs font-bold uppercase tracking-wider text-navy">{section.section}</p>
+                        className="flex w-full items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors">
+                        <p className="text-xs font-bold uppercase tracking-wider">{section.section}</p>
                         {collapsed[section.section]
                           ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground"/>
                           : <ChevronUp   className="h-3.5 w-3.5 text-muted-foreground"/>}
@@ -560,14 +563,14 @@ export default function DocumentViewer({
                           <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }}
                             className="overflow-hidden border-t border-border/50">
                             <div className="grid grid-cols-1 gap-2 p-4 sm:grid-cols-2">
-                              {section.fields.map((field, fi) => (
-                                <motion.div key={`${field.key}-${fi}`}
+                              {section.fields?.map((field, fi) => (
+                                <motion.div key={`${field.key || fi}-${fi}`}
                                   initial={{ opacity: 0, scale: 0.97 }}
                                   animate={{ opacity: 1, scale: 1 }}
                                   transition={{ delay: fi * 0.03 }}
                                   className={`rounded-lg border p-3 ${COLORS[fi % COLORS.length]}`}>
-                                  <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{field.key}</p>
-                                  <p className="mt-0.5 break-words text-sm font-semibold text-navy">{field.value || "—"}</p>
+                                  <p className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">{field.key || "Field"}</p>
+                                  <p className="mt-0.5 break-words text-sm font-semibold">{field.value || "—"}</p>
                                 </motion.div>
                               ))}
                             </div>
@@ -578,15 +581,13 @@ export default function DocumentViewer({
                   ))}
 
                   {/* Table */}
-                  {invoiceData.line_items && invoiceData.line_items.rows.length > 0 &&
-                    visibleCount > invoiceData.sections.length && (
+                  {invoiceData.line_items && invoiceData.line_items.rows && invoiceData.line_items.rows.length > 0 &&
+                    visibleCount > (invoiceData.sections?.length || 0) && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                      className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+                      className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
                       <button onClick={() => setLineItemsOpen(v => !v)}
                         className="flex w-full items-center justify-between px-4 py-3 hover:bg-surface-raised transition-colors">
-                        <p className="text-xs font-bold uppercase tracking-wider text-navy">
                           Table Data ({invoiceData.line_items.rows.length} rows)
-                        </p>
                         {lineItemsOpen
                           ? <ChevronUp   className="h-3.5 w-3.5 text-muted-foreground"/>
                           : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground"/>}
@@ -598,17 +599,17 @@ export default function DocumentViewer({
                             <div className="overflow-x-auto">
                               <table className="w-full text-xs">
                                 <thead>
-                                  <tr className="bg-surface-raised">
-                                    {invoiceData.line_items.headers.map((h, hi) => (
-                                      <th key={hi} className="px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h}</th>
+                                  <tr className="bg-muted/50">
+                                    {invoiceData.line_items.headers?.map((h, hi) => (
+                                      <th key={hi} className="px-4 py-2.5 text-left font-mono text-[10px] uppercase tracking-wider text-muted-foreground whitespace-nowrap">{h || "—"}</th>
                                     ))}
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {invoiceData.line_items.rows.map((row, ri) => (
-                                    <tr key={ri} className={`border-t border-border/40 ${ri % 2 === 1 ? "bg-surface-raised/40" : ""}`}>
-                                      {row.map((cell, ci) => (
-                                        <td key={ci} className="px-4 py-2.5 text-muted-foreground">{cell}</td>
+                                  {invoiceData.line_items.rows?.map((row, ri) => (
+                                    <tr key={ri} className={`border-t border-border/40 ${ri % 2 === 1 ? "bg-muted/20" : ""}`}>
+                                      {row?.map((cell, ci) => (
+                                        <td key={ci} className="px-4 py-2.5 text-muted-foreground">{cell || "—"}</td>
                                       ))}
                                     </tr>
                                   ))}
@@ -623,13 +624,13 @@ export default function DocumentViewer({
 
                   {/* Footer */}
                   <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
-                    className="flex items-center gap-3 rounded-xl border border-border bg-white p-3.5 shadow-sm">
+                    className="flex items-center gap-3 rounded-xl border border-border bg-card p-3.5 shadow-sm">
                     <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                       <HardDrive className="h-3.5 w-3.5 text-primary"/>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {ingestResult
-                        ? <><span className="font-semibold text-navy">{ingestResult.chunks} chunks</span> indexed · Use the <span className="font-semibold text-primary">chat widget</span> for questions.</>
+                        ? <><span className="font-semibold">{ingestResult.chunks} chunks</span> indexed · Use the <span className="font-semibold text-primary">chat widget</span> for questions.</>
                         : uploading
                         ? "Indexing for chat…"
                         : "Extracted client-side · Use the chat widget to ask questions."}

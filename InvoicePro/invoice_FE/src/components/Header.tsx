@@ -1,16 +1,29 @@
 import { motion } from "framer-motion";
-import { Activity, Cpu, WifiOff, FileCheck } from "lucide-react";
+import { Activity, Cpu, WifiOff, FileCheck, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { clearToken, getAuthHeaders } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "./ThemeToggle";
 
 const Header = () => {
   const [health, setHealth] = useState<"checking" | "online" | "offline">("checking");
   const [activeInvoice, setActiveInvoice] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    clearToken();
+    navigate("/login");
+  };
 
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch("/api/health", { signal: AbortSignal.timeout(5000) });
+        const res = await fetch("/api/health", { 
+          signal: AbortSignal.timeout(5000),
+          headers: getAuthHeaders()
+        });
         if (res.ok) {
           const data = await res.json();
           setHealth("online");
@@ -42,19 +55,19 @@ const Header = () => {
       <div className="glass border-b border-border shadow-sm">
         <div className="flex items-center justify-between px-6 py-3.5 lg:px-10">
           {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary shadow-sm shadow-primary/20">
-              <FileCheck className="h-5 w-5 text-white" />
+            <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate("/")}>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform duration-300">
+                <FileCheck className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="font-heading text-xl font-bold leading-none tracking-tight text-foreground">
+                  Invoice<span className="text-primary">Pro</span>AI
+                </h1>
+                <p className="mt-1 font-mono text-[9px] uppercase tracking-[0.2em] text-muted-foreground">
+                  Intelligent RAG Workspace
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="font-heading text-lg font-bold leading-none text-navy">
-                Invoice<span className="brand-text">Pro AI</span>
-              </h1>
-              <p className="mt-0.5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                RAG · Ollama · ChromaDB
-              </p>
-            </div>
-          </div>
 
           {/* Right */}
           <div className="flex items-center gap-2">
@@ -90,6 +103,18 @@ const Header = () => {
                  health === "online"   ? "Backend Online" : "Backend Offline"}
               </span>
             </div>
+
+            <ThemeToggle />
+
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={handleLogout}
+              className="h-8 w-8 text-muted-foreground hover:text-destructive"
+              title="Logout"
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
           </div>
         </div>
 

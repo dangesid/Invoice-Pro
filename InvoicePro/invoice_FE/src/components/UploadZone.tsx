@@ -1,9 +1,13 @@
-import { Upload, FileSearch, Zap, Shield, ChevronRight, CheckCircle } from "lucide-react";
+import { Upload, FileSearch, Zap, Shield, ChevronRight, CheckCircle, ShieldCheck } from "lucide-react";
 import { useCallback, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, Variants } from "framer-motion";
 
 interface UploadZoneProps {
   onFileSelect: (file: File) => void;
+  userName?: string;
+  companyName?: string;
+  role?: string;
+  industry?: string;
 }
 
 const FORMATS = ["PDF", "XLSX", "CSV", "PNG", "JPG", "TIFF"];
@@ -32,15 +36,28 @@ const STEPS = [
   { num: "03", label: "Ask Questions", desc: "Get answers with citations" },
 ];
 
-const stagger = {
-  container: { hidden: {}, show: { transition: { staggerChildren: 0.09, delayChildren: 0.15 } } },
+const stagger: { container: Variants; item: Variants } = {
+  container: {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2
+      }
+    }
+  },
   item: {
     hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
-  },
+    show: {
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.5, ease: [0.22, 1, 0.36, 1] }
+    }
+  }
 };
 
-const UploadZone = ({ onFileSelect }: UploadZoneProps) => {
+const UploadZone = ({ onFileSelect, userName, companyName, role, industry }: UploadZoneProps) => {
   const [dragOver, setDragOver] = useState(false);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -56,41 +73,44 @@ const UploadZone = ({ onFileSelect }: UploadZoneProps) => {
   };
 
   return (
-    <div className="flex-1 overflow-auto">
-      {/* Hero — navy banner */}
-      <div className="hero-navy px-6 py-16 lg:px-10 lg:py-20">
+    <div className="flex-1">
+      {/* Hero — banner */}
+      <div className="bg-white dark:bg-slate-950 text-foreground dark:text-white px-6 py-8 lg:px-10 lg:py-12 relative border-b border-border">
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent pointer-events-none" />
         <motion.div
           variants={stagger.container}
           initial="hidden"
           animate="show"
           className="mx-auto max-w-4xl"
         >
-          {/* Badge */}
-          <motion.div variants={stagger.item} className="mb-8 flex justify-center">
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-              <span className="font-mono text-[11px] uppercase tracking-widest text-white/60">
-                RAG-powered invoice intelligence
-              </span>
-            </div>
+          {/* Top Badges */}
+          <motion.div variants={stagger.item} className="mb-8 flex justify-center gap-3">
+            {industry && (
+              <div className="bg-primary/10 text-primary px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border border-primary/20 shadow-sm flex items-center gap-2">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+                Customized for {industry}
+              </div>
+            )}
+            {role && (
+              <div className="bg-muted/50 text-muted-foreground px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border border-border shadow-sm">
+                {role} Perspective
+              </div>
+            )}
           </motion.div>
 
           {/* Headline */}
-          <motion.div variants={stagger.item} className="mb-5 text-center">
-            <h1 className="font-heading text-5xl leading-[1.05] tracking-tight text-white md:text-6xl lg:text-7xl">
-              Extract & query
-              <br />
-              <span className="brand-text">any invoice instantly.</span>
+          <motion.div variants={stagger.item} className="mt-8 mb-8 text-center">
+            <h1 className="font-heading text-5xl leading-tight tracking-tighter text-foreground md:text-6xl lg:text-7xl font-black">
+              <span className="brand-text">InvoicePro</span>
             </h1>
+            <h2 className="mt-4 text-2xl md:text-3xl font-bold text-muted-foreground opacity-80">
+              Assisting {companyName || "Your"} Finance Team
+            </h2>
+            <p className="mt-8 text-muted-foreground text-lg max-w-2xl mx-auto font-medium leading-relaxed">
+              Hello {userName?.split(' ')[0] || "Explorer"}, your {companyName || "business"} workspace is ready.
+              Ready to process your {industry || "business"} invoices with Llama 3.2.
+            </p>
           </motion.div>
-
-          <motion.p
-            variants={stagger.item}
-            className="mx-auto mb-12 max-w-lg text-center text-base leading-relaxed text-white/55"
-          >
-            Upload an invoice, let our local AI parse and index it, then ask
-            questions in plain English — with exact source citations.
-          </motion.p>
 
           {/* Steps */}
           <motion.div
@@ -99,14 +119,11 @@ const UploadZone = ({ onFileSelect }: UploadZoneProps) => {
           >
             {STEPS.map((s, i) => (
               <div key={s.num} className="flex flex-col items-center gap-2 text-center">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 font-mono text-sm font-bold text-primary">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-muted/30 font-mono text-sm font-bold text-primary">
                   {s.num}
                 </div>
-                {i < 2 && (
-                  <div className="absolute hidden" />
-                )}
-                <p className="text-sm font-semibold text-white/80">{s.label}</p>
-                <p className="text-xs text-white/40">{s.desc}</p>
+                <p className="text-sm font-semibold text-foreground/90">{s.label}</p>
+                <p className="text-xs text-muted-foreground">{s.desc}</p>
               </div>
             ))}
           </motion.div>
@@ -117,11 +134,10 @@ const UploadZone = ({ onFileSelect }: UploadZoneProps) => {
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
-              className={`rounded-2xl border-2 border-dashed transition-all duration-300 ${
-                dragOver
+              className={`rounded-2xl border-2 border-dashed transition-all duration-300 ${dragOver
                   ? "border-primary/60 bg-primary/5"
-                  : "border-white/15 hover:border-primary/40 hover:bg-white/3"
-              }`}
+                  : "border-border hover:border-primary/40 hover:bg-muted/30"
+                }`}
             >
               <label className="block cursor-pointer">
                 <input
@@ -132,16 +148,15 @@ const UploadZone = ({ onFileSelect }: UploadZoneProps) => {
                 />
                 <div className="flex flex-col items-center gap-5 px-8 py-12 sm:flex-row sm:justify-between sm:px-10 sm:py-8">
                   <div className="flex items-center gap-4">
-                    <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border transition-all duration-300 ${
-                      dragOver ? "border-primary/40 bg-primary/10" : "border-white/10 bg-white/5"
-                    }`}>
-                      <Upload className={`h-6 w-6 transition-colors ${dragOver ? "text-primary" : "text-white/50"}`} />
+                    <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border transition-all duration-300 ${dragOver ? "border-primary/40 bg-primary/10" : "border-border bg-muted/50"
+                      }`}>
+                      <Upload className={`h-6 w-6 transition-colors ${dragOver ? "text-primary" : "text-muted-foreground"}`} />
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-semibold text-white/90">
+                      <p className="text-sm font-semibold text-foreground">
                         {dragOver ? "Release to upload" : "Drop your invoice here"}
                       </p>
-                      <p className="mt-0.5 text-xs text-white/40">
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         or click to browse your files
                       </p>
                     </div>
@@ -162,7 +177,7 @@ const UploadZone = ({ onFileSelect }: UploadZoneProps) => {
                   initial={{ opacity: 0, scale: 0.85 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.6 + i * 0.05 }}
-                  className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-white/40"
+                  className="rounded-md border border-border bg-muted/30 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wider text-muted-foreground/60"
                 >
                   {fmt}
                 </motion.span>
@@ -191,12 +206,12 @@ const UploadZone = ({ onFileSelect }: UploadZoneProps) => {
               <motion.div
                 key={f.title}
                 variants={stagger.item}
-                className="card-glow group rounded-xl border border-border bg-white p-6 card-shadow transition-all duration-300"
+                className="card-glow group rounded-xl border border-border bg-white dark:bg-slate-900 p-6 shadow-sm transition-all duration-300 hover:border-primary/30"
               >
                 <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-primary/15 bg-primary/8 transition-colors group-hover:bg-primary/12">
                   <f.icon className="h-5 w-5 text-primary" />
                 </div>
-                <h3 className="text-sm font-bold text-navy">{f.title}</h3>
+                <h3 className="text-sm font-bold text-foreground">{f.title}</h3>
                 <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{f.desc}</p>
               </motion.div>
             ))}

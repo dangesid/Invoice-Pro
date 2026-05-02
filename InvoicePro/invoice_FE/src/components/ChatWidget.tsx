@@ -6,6 +6,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getAuthHeaders } from "@/lib/auth";
 
 interface Source { source: string; page: string; }
 interface Message {
@@ -49,6 +50,11 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
   const [input, setInput]     = useState("");
   const [loading, setLoading] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
+  const [recommendations, setRecommendations] = useState<string[]>([
+    "What is the total amount?",
+    "Summarize this invoice",
+    "Find the due date"
+  ]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
 
@@ -78,7 +84,10 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          ...getAuthHeaders()
+        },
         body: JSON.stringify({ question: text }),
       });
       if (!res.ok) {
@@ -91,6 +100,7 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
         source: s.source, page: String(s.page),
       }));
       setMessages((p) => [...p, { id: `a-${Date.now()}`, role: "assistant", content: answer, sources }]);
+      if (data.recommendations) setRecommendations(data.recommendations);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Request failed";
       setMessages((p) => [...p, { id: `e-${Date.now()}`, role: "assistant", content: msg, error: true }]);
@@ -103,7 +113,6 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
 
   return (
     <>
-      {/* FAB */}
       <motion.button
         whileHover={{ scale: 1.06 }}
         whileTap={{ scale: 0.94 }}
@@ -124,7 +133,6 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
         )}
       </motion.button>
 
-      {/* Panel */}
       <AnimatePresence>
         {open && (
           <motion.div
@@ -134,7 +142,6 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
             transition={{ type: "spring", damping: 28, stiffness: 380 }}
             className="fixed bottom-28 right-8 z-50 flex h-[560px] w-[400px] flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-2xl shadow-navy/10"
           >
-            {/* Header */}
             <div className="flex items-center justify-between border-b border-border bg-surface-raised px-4 py-3">
               <div className="flex items-center gap-3">
                 <div className="relative flex h-9 w-9 items-center justify-center rounded-full border border-primary/20 bg-primary/10">
@@ -166,10 +173,7 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
               </div>
             </div>
 
-            {/* Messages */}
             <div ref={scrollRef} onScroll={handleScroll} className="relative flex-1 space-y-4 overflow-auto p-4 custom-scroll bg-surface-raised">
-
-              {/* Empty state — plain, no suggestions */}
               {messages.length === 0 && (
                 <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                   className="flex flex-col items-center justify-center gap-3 pt-16 text-center">
@@ -226,7 +230,6 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
               )}
             </div>
 
-            {/* Scroll to bottom */}
             <AnimatePresence>
               {!atBottom && (
                 <motion.button
@@ -239,7 +242,22 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
               )}
             </AnimatePresence>
 
-            {/* Input */}
+            {recommendations.length > 0 && !loading && (
+              <div className="px-4 py-2 bg-muted/30 border-t border-border flex flex-wrap gap-2">
+                {recommendations.map((rec, i) => (
+                  <Button
+                    key={i}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-[10px] rounded-full border-primary/20 hover:bg-primary/5 hover:text-primary transition-all"
+                    onClick={() => { sendMessage(rec); setRecommendations([]); }}
+                  >
+                    {rec}
+                  </Button>
+                ))}
+              </div>
+            )}
+
             <div className="border-t border-border bg-white p-3">
               <form onSubmit={(e) => { e.preventDefault(); sendMessage(input); }} className="flex items-center gap-2">
                 <Input
