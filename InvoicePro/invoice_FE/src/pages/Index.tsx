@@ -4,6 +4,7 @@ import DocumentViewer from "@/components/DocumentViewer";
 import ChatWidget from "@/components/ChatWidget";
 import InvoiceHistory from "@/components/InvoiceHistory";
 import { getAuthHeaders, downloadAuthenticatedFile } from "@/lib/auth";
+import { apiUrl } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { FileText, BarChart3, Download, History, X, Search, AlignLeft } from "lucide-react";
@@ -58,7 +59,7 @@ export default function Index() {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await fetch("/api/me", { headers: getAuthHeaders() });
+        const res = await fetch(apiUrl("/api/me"), { headers: getAuthHeaders() });
         if (res.ok) setUser(await res.json());
       } catch (e) { console.error(e); }
     };
@@ -80,7 +81,7 @@ export default function Index() {
 
     try {
       // Single call for both Ingest & Extract
-      const res = await fetch("/api/ingest-file", {
+      const res = await fetch(apiUrl("/api/ingest-file"), {
         method: "POST",
         headers: getAuthHeaders(),
         body: formData,

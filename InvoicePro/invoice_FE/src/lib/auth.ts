@@ -1,4 +1,5 @@
 // src/lib/auth.ts
+import { apiHeaders, apiUrl } from "@/lib/api";
 
 export const TOKEN_KEY = "invoice_pro_token";
 
@@ -12,6 +13,7 @@ export const getToken = () => {
 
 export const clearToken = () => {
   localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem("token");
 };
 
 export const isAuthenticated = () => {
@@ -20,12 +22,12 @@ export const isAuthenticated = () => {
 
 export const getAuthHeaders = () => {
   const token = getToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return apiHeaders(token ? { Authorization: `Bearer ${token}` } : {});
 };
 
 export const downloadAuthenticatedFile = async (url: string, filename: string) => {
   try {
-    const res = await fetch(url, { headers: getAuthHeaders() });
+    const res = await fetch(apiUrl(url), { headers: getAuthHeaders() });
     if (!res.ok) throw new Error("Download failed");
     const blob = await res.blob();
     const link = document.createElement("a");

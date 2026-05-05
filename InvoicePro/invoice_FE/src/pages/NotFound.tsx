@@ -12,7 +12,7 @@ const NotFound = () => {
         <p className="font-heading text-8xl gold-text">404</p>
         <p className="mt-3 text-muted-foreground">Page not found.</p>
         <button
-          onClick={() => navigate("/")}
+          onClick={() => navigate("/dashboard")}
           className="mt-6 rounded-xl border border-border/60 px-5 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/30 hover:text-foreground hover:bg-surface-raised"
         >
           Back to home

@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { setToken } from "@/lib/auth";
+import { apiHeaders, apiTimeoutSignal, apiUrl } from "@/lib/api";
 import { Receipt, Mail, Lock, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { motion } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -21,11 +22,13 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
 
+    const timeout = apiTimeoutSignal();
     try {
-      const response = await fetch("/api/login", {
+      const response = await fetch(apiUrl("/api/login"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: apiHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ email, password }),
+        signal: timeout.signal,
       });
 
       const data = await response.json();
@@ -33,13 +36,17 @@ export default function Login() {
       if (response.ok) {
         setToken(data.access_token);
         toast.success("Welcome back!");
-        navigate("/");
+        navigate("/dashboard");
       } else {
         toast.error(data.detail || "Invalid email or password");
       }
     } catch (error) {
-      toast.error("An error occurred during login");
+      const message = error instanceof DOMException && error.name === "AbortError"
+        ? "Backend request timed out. Check ngrok and backend."
+        : "Could not reach backend during login";
+      toast.error(message);
     } finally {
+      timeout.clear();
       setLoading(false);
     }
   };
@@ -50,11 +57,13 @@ export default function Login() {
       return;
     }
 
+    const timeout = apiTimeoutSignal();
     try {
-      const res = await fetch("/api/forgot-password", {
+      const res = await fetch(apiUrl("/api/forgot-password"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: apiHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ email }),
+        signal: timeout.signal,
       });
       if (res.ok) {
         toast.success("Password reset link sent to your email!");
@@ -63,7 +72,12 @@ export default function Login() {
         toast.error(data.detail || "Failed to send reset link");
       }
     } catch (err) {
-      toast.error("Connection error");
+      const message = err instanceof DOMException && err.name === "AbortError"
+        ? "Backend request timed out. Check ngrok and backend."
+        : "Connection error";
+      toast.error(message);
+    } finally {
+      timeout.clear();
     }
   };
 

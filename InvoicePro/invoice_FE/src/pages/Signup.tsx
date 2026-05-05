@@ -6,6 +6,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { setToken } from "@/lib/auth";
+import { apiHeaders, apiTimeoutSignal, apiUrl } from "@/lib/api";
 import { Receipt, Mail, Lock, UserPlus, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -31,11 +32,13 @@ export default function Signup() {
 
     setLoading(true);
 
+    const timeout = apiTimeoutSignal();
     try {
-      const response = await fetch("/api/signup", {
+      const response = await fetch(apiUrl("/api/signup"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: apiHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({ email, password, name, company, role, industry }),
+        signal: timeout.signal,
       });
 
       const data = await response.json();
@@ -43,13 +46,17 @@ export default function Signup() {
       if (response.ok) {
         setToken(data.access_token);
         toast.success("Account created successfully!");
-        navigate("/");
+        navigate("/dashboard");
       } else {
         toast.error(data.detail || "Signup failed");
       }
     } catch (error) {
-      toast.error("An error occurred during signup");
+      const message = error instanceof DOMException && error.name === "AbortError"
+        ? "Backend request timed out. Check ngrok and backend."
+        : "Could not reach backend during signup";
+      toast.error(message);
     } finally {
+      timeout.clear();
       setLoading(false);
     }
   };

@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { getAuthHeaders } from "@/lib/auth";
+import { apiHeaders, apiUrl } from "@/lib/api";
 
 interface Source { source: string; page: string; }
 interface Message {
@@ -82,12 +83,12 @@ const ChatWidget = ({ fileName }: ChatWidgetProps) => {
     setAtBottom(true);
 
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch(apiUrl("/api/chat"), {
         method: "POST",
-        headers: { 
+        headers: apiHeaders({ 
           "Content-Type": "application/json",
           ...getAuthHeaders()
-        },
+        }),
         body: JSON.stringify({ question: text }),
       });
       if (!res.ok) {

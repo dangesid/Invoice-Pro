@@ -3,6 +3,7 @@ import { Activity, Cpu, WifiOff, FileCheck, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { clearToken, getAuthHeaders } from "@/lib/auth";
+import { apiBaseUrl, apiUrl } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "./ThemeToggle";
 
@@ -20,7 +21,7 @@ const Header = () => {
   useEffect(() => {
     const check = async () => {
       try {
-        const res = await fetch("/api/health", { 
+        const res = await fetch(apiUrl("/api/health"), { 
           signal: AbortSignal.timeout(5000),
           headers: getAuthHeaders()
         });
@@ -55,7 +56,7 @@ const Header = () => {
       <div className="glass border-b border-border shadow-sm">
         <div className="flex items-center justify-between px-6 py-3.5 lg:px-10">
           {/* Logo */}
-            <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate("/")}>
+            <div className="flex items-center gap-3 group cursor-pointer" onClick={() => navigate("/dashboard")}>
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-lg shadow-primary/20 group-hover:scale-110 transition-transform duration-300">
                 <FileCheck className="h-6 w-6 text-white" />
               </div>
@@ -126,7 +127,7 @@ const Header = () => {
             className="border-t border-destructive/15 bg-destructive/5 px-6 py-2"
           >
             <p className="font-mono text-[11px] text-destructive/80">
-              ⚠ Cannot reach backend at <code className="font-bold">http://127.0.0.1:8000</code>
+              ⚠ Cannot reach backend at <code className="font-bold">{apiBaseUrl || "http://127.0.0.1:8000"}</code>
               {errorDetail && ` — ${errorDetail}`}
               {" · "}Run:{" "}
               <code className="font-bold">uvicorn backend.invoice_api:app --host 0.0.0.0 --port 8000</code>

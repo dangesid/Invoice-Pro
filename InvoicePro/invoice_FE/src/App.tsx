@@ -11,7 +11,7 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
+const RequireAuth = ({ children }: { children: React.ReactNode }) => {
   if (!isAuthenticated()) {
     return <Navigate to="/login" replace />;
   }
@@ -25,17 +25,18 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route 
-            path="/" 
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route
+            path="/dashboard"
             element={
-              <ProtectedRoute>
+              <RequireAuth>
                 <Index />
-              </ProtectedRoute>
-            } 
+              </RequireAuth>
+            }
           />
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Signup />} />
-          <Route path="*" element={<NotFound />} />
+          <Route path="*" element={isAuthenticated() ? <NotFound /> : <Navigate to="/login" replace />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { getAuthHeaders, downloadAuthenticatedFile } from "@/lib/auth";
+import { clearToken, getAuthHeaders, downloadAuthenticatedFile } from "@/lib/auth";
+import { apiUrl } from "@/lib/api";
 import { motion } from "framer-motion";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
@@ -38,7 +39,7 @@ const InvoiceHistory = ({ refreshTrigger, onSelect, user, onClose }: InvoiceHist
   useEffect(() => {
     const fetchInvoices = async () => {
       try {
-        const res = await fetch("/api/invoices", { headers: getAuthHeaders() });
+        const res = await fetch(apiUrl("/api/invoices"), { headers: getAuthHeaders() });
         if (res.ok) {
           setInvoices(await res.json());
         }
@@ -54,7 +55,7 @@ const InvoiceHistory = ({ refreshTrigger, onSelect, user, onClose }: InvoiceHist
   const handleClearAll = async () => {
     if (!confirm("Are you sure you want to clear all invoice history?")) return;
     try {
-      const res = await fetch("/api/invoices", { 
+      const res = await fetch(apiUrl("/api/invoices"), { 
         method: "DELETE", 
         headers: getAuthHeaders() 
       });
@@ -197,7 +198,7 @@ const InvoiceHistory = ({ refreshTrigger, onSelect, user, onClose }: InvoiceHist
           variant="ghost" 
           className="w-full justify-start gap-3 h-10 text-xs font-semibold text-destructive hover:bg-destructive/10 hover:text-destructive rounded-lg"
           onClick={() => {
-            localStorage.removeItem("token");
+            clearToken();
             window.location.href = "/login";
           }}
         >
