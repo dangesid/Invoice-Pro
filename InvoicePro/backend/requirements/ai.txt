@@ -1,0 +1,15 @@
+-r base.txt
+
+# LLM clients
+openai==1.40.0
+
+# Vector store and embeddings
+numpy==1.26.4
+chromadb==0.4.24
+sentence-transformers==3.0.1
+
+# PyTorch runtime used by sentence-transformers.
+# Use portable pins here: the +cpu wheel suffix is not published for every
+# Python/platform combination, especially macOS and Linux ARM builds.
+torch==2.2.2
+torchvision==0.17.2
